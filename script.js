@@ -1,6 +1,5 @@
 // ============================================
-// DEBATESPACE - EVERY SENTENCE CITED DISPLAY
-// (YOUR ORIGINAL WORKING CODE)
+// DEBATESPACE - DISPLAY WITH CITATIONS
 // ============================================
 
 async function searchDebate() {
@@ -39,44 +38,29 @@ async function searchDebate() {
 function renderResults(data, query) {
     const container = document.getElementById('results');
     
-    const formatAnswerWithCitations = (answer) => {
-        if (!answer || !answer.text) return 'No answer available.';
+    // Format answer with clickable citations
+    const formatAnswer = (answer) => {
+        if (!answer || !answer.text) return '<p>No answer available.</p>';
         
-        let formattedHtml = '';
+        let formattedText = answer.text;
         
-        if (answer.sentences && answer.sentences.length > 0) {
-            for (const sentence of answer.sentences) {
-                if (sentence.citationId) {
-                    const citation = answer.citations.find(c => c.id === sentence.citationId);
-                    if (citation) {
-                        formattedHtml += `<span class="sentence-with-citation">${sentence.text}<a href="${citation.url}" target="_blank" class="citation-superscript" title="Source: ${citation.source}">[${sentence.citationId}]</a></span> `;
-                    } else {
-                        formattedHtml += `${sentence.text} `;
-                    }
-                } else {
-                    formattedHtml += `<span class="sentence-intro">${sentence.text}</span> `;
-                }
+        // Replace [X] with clickable links
+        formattedText = formattedText.replace(/\[(\d+)\]/g, (match, num) => {
+            const citation = answer.citations?.find(c => c.id == num);
+            if (citation) {
+                return `<a href="${citation.url}" target="_blank" class="citation-link-inline" title="${citation.source}">[${num}]</a>`;
             }
-        } else {
-            formattedHtml = answer.text;
-            if (answer.citations) {
-                formattedHtml = formattedHtml.replace(/\[(\d+)\]/g, (match, num) => {
-                    const citation = answer.citations.find(c => c.id == num);
-                    if (citation) {
-                        return `<a href="${citation.url}" target="_blank" class="citation-inline" title="${citation.source}">[${num}]</a>`;
-                    }
-                    return match;
-                });
-            }
-        }
+            return match;
+        });
         
-        const paragraphs = formattedHtml.split(/\n\n+/);
+        // Convert line breaks to paragraphs
+        const paragraphs = formattedText.split(/\n\n+/);
         return paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
     };
     
     const renderCitations = (citations) => {
         if (!citations || citations.length === 0) {
-            return '<div class="citations-section"><div class="section-header"><span class="section-icon">📋</span><span>SOURCE CITATIONS</span></div><div class="no-citations">No specific citations found. Try a different search term.</div></div>';
+            return '<div class="no-citations">No specific citations found. Try a different search term.</div>';
         }
         return `
             <div class="citations-section">
@@ -102,7 +86,7 @@ function renderResults(data, query) {
         `;
     };
     
-    const renderNewsArticles = (articles) => {
+    const renderNews = (articles) => {
         if (!articles || articles.length === 0) return '';
         return `
             <div class="news-section">
@@ -118,7 +102,7 @@ function renderResults(data, query) {
                                 <span class="news-source">📌 ${article.source}</span>
                                 ${article.date ? `<span class="news-date">📅 ${article.date}</span>` : ''}
                             </div>
-                            ${article.description ? `<div class="news-description">${article.description.substring(0, 150)}...</div>` : ''}
+                            ${article.description ? `<div class="news-description">${article.description}...</div>` : ''}
                         </div>
                     `).join('')}
                 </div>
@@ -160,18 +144,15 @@ function renderResults(data, query) {
                 <div class="allsources-list">
                     ${sources.map((source, idx) => {
                         let typeIcon = "";
-                        if (source.type === "government") typeIcon = "🏛️";
+                        if (source.isGovernment || source.type === "government") typeIcon = "🏛️";
                         else if (source.type === "archive") typeIcon = "📜";
-                        else if (source.type === "academic") typeIcon = "🎓";
-                        else if (source.type === "legal") typeIcon = "⚖️";
-                        else if (source.type === "web") typeIcon = "🌐";
-                        else typeIcon = "📄";
+                        else typeIcon = "🌐";
                         
                         return `
                             <div class="allsource-item">
                                 <span class="allsource-num">${idx + 1}.</span>
                                 <span class="allsource-type">${typeIcon}</span>
-                                <a href="${source.url}" target="_blank" class="allsource-link">${source.title || source.text?.substring(0, 80) || 'View Source'}</a>
+                                <a href="${source.url}" target="_blank" class="allsource-link">${source.title || source.snippet?.substring(0, 80)}</a>
                                 <span class="allsource-domain">${source.source}</span>
                             </div>
                         `;
@@ -182,28 +163,30 @@ function renderResults(data, query) {
     };
     
     let html = `
+        <!-- ANSWER SECTION -->
         <div class="answer-card">
             <div class="answer-header">
-                <span class="answer-icon">📌</span>
-                <span>FACTUAL ANSWER WITH CITATIONS</span>
+                <span class="answer-icon">✅</span>
+                <span>RESEARCH FINDINGS</span>
             </div>
             <div class="answer-text">
-                ${formatAnswerWithCitations(data.answer)}
+                ${formatAnswer(data.answer)}
             </div>
             <div class="answer-footer">
-                <span class="evidence-count">📊 Based on ${data.answer?.evidenceCount || 0} government and official sources</span>
-                <span class="citation-note">💡 Numbers in brackets [1] are clickable citations that go directly to the source</span>
+                <span class="evidence-count">📊 ${data.answer?.evidenceCount || 0} Sources (${data.answer?.governmentCount || 0} Government)</span>
+                <span class="citation-note">💡 Click any [number] to verify the source directly</span>
             </div>
         </div>
         
         ${renderCitations(data.answer?.citations)}
-        ${renderNewsArticles(data.newsArticles)}
+        ${renderNews(data.newsArticles)}
         ${renderVideos(data.videoSources)}
         ${renderAllSources(data.allSources)}
         
         <div class="stats-footer">
             <span>🔍 "${query}"</span>
-            <span>🏛️ ${data.allSources?.filter(s => s.type === "government").length || 0} Gov Sources</span>
+            <span>🏛️ ${data.allSources?.filter(s => s.isGovernment).length || 0} Gov</span>
+            <span>📜 ${data.allSources?.filter(s => s.type === "archive").length || 0} Archive</span>
             <span>📰 ${data.newsArticles?.length || 0} News</span>
             <span>📺 ${data.videoSources?.length || 0} Videos</span>
             <span>📋 ${data.answer?.citations?.length || 0} Citations</span>
@@ -218,6 +201,7 @@ function setSearch(topic) {
     searchDebate();
 }
 
+// Styles
 const styles = `
 <style>
 .answer-card {
@@ -241,37 +225,21 @@ const styles = `
 .answer-icon { font-size: 1.3rem; }
 .answer-text {
     font-size: 1rem;
-    line-height: 1.7;
+    line-height: 1.6;
     color: #e4e4e7;
     margin-bottom: 20px;
 }
 .answer-text p {
     margin-bottom: 12px;
 }
-.sentence-with-citation {
-    display: inline;
-}
-.citation-superscript {
-    display: inline-block;
-    color: #fbbf24;
-    text-decoration: none;
-    font-weight: bold;
-    font-size: 0.75rem;
-    margin-left: 2px;
-    padding: 0 2px;
-}
-.citation-superscript:hover {
-    text-decoration: underline;
-    color: #34d399;
-}
-.citation-inline {
+.citation-link-inline {
     display: inline-block;
     color: #fbbf24;
     text-decoration: none;
     font-weight: bold;
     padding: 0 2px;
 }
-.citation-inline:hover {
+.citation-link-inline:hover {
     text-decoration: underline;
     color: #34d399;
 }
@@ -532,4 +500,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Every sentence cited from government sources');
+console.log('DebateSpace loaded - Pure discovery research');
