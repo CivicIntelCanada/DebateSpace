@@ -1,6 +1,7 @@
 // ============================================
-// DEBATESPACE - GOVERNMENT DATA FIRST
-// Prioritizes .gov, official sources over AI
+// DEBATESPACE - DEEP RESEARCH USING ALL APIS
+// Combines: Google Search (5 engines) + Tavily + Groq + GNews
+// Presents in clean layout with cited claims
 // ============================================
 
 export default async function handler(req, res) {
@@ -11,22 +12,25 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'No query provided' });
     }
     
-    console.log(`[API] Government-first search: "${query}"`);
+    console.log(`[API] Deep research: "${query}"`);
     
     try {
-        // Fetch ALL government sources FIRST (priority)
-        const govResults = await fetchAllGovernmentSources(query);
-        
-        // Then fetch supplementary data
-        const [newsResult, youtubeResult] = await Promise.all([
+        // Fetch from ALL APIs in parallel
+        const [govResults, tavilyResult, groqResult, newsResult, youtubeResult] = await Promise.all([
+            fetchAllGovernmentSources(query),
+            fetchTavilyDeep(query),
+            fetchGroqDeep(query),
             fetchGNews(query),
             fetchYouTube(query)
         ]);
         
-        // Build fact check from government sources ONLY
-        const factCheck = buildFactCheckFromGovernment(govResults, query);
+        // Combine ALL sources
+        const allSources = combineAllSources(govResults, tavilyResult);
         
-        // Format news articles
+        // Build deep research fact check
+        const factCheck = buildDeepFactCheck(query, tavilyResult, groqResult, allSources);
+        
+        // Format news
         const formattedNews = formatNews(newsResult, query);
         
         return res.status(200).json({
@@ -44,11 +48,10 @@ export default async function handler(req, res) {
             success: true,
             query: query,
             factCheck: {
-                verdict: "🔍 SEARCH GOVERNMENT SOURCES",
-                summary: `Search official government websites below for accurate information about "${query}".`,
+                verdict: "🔍 RESEARCH FINDINGS",
+                summary: `Deep research results for "${query}".`,
                 citedClaims: [],
-                governmentSearchLinks: getGovernmentSearchLinks(query),
-                tip: "Government websites (.gov, .gc.ca) contain the most authoritative information"
+                tip: "Try rephrasing your question for more specific results"
             },
             newsArticles: getFallbackNews(query),
             youtube: []
@@ -57,17 +60,17 @@ export default async function handler(req, res) {
 }
 
 // ============================================
-// FETCH ALL 5 GOOGLE SEARCH ENGINES - PRIORITY
+// FETCH ALL 5 GOOGLE SEARCH ENGINES
 // ============================================
 async function fetchAllGovernmentSources(query) {
     const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
     
     const searchEngines = [
-        { name: 'North America', cx: process.env.GOOGLE_SEARCH_CX_NA, priority: 1 },
-        { name: 'Europe', cx: process.env.GOOGLE_SEARCH_CX_EU, priority: 2 },
-        { name: 'Asia Pacific', cx: process.env.GOOGLE_SEARCH_CX_ASIA, priority: 3 },
-        { name: 'Think Tanks', cx: process.env.GOOGLE_SEARCH_CX_TT, priority: 4 },
-        { name: 'News', cx: process.env.GOOGLE_SEARCH_CX_NEWS, priority: 5 }
+        { name: 'North America', cx: process.env.GOOGLE_SEARCH_CX_NA },
+        { name: 'Asia Pacific', cx: process.env.GOOGLE_SEARCH_CX_ASIA },
+        { name: 'Europe', cx: process.env.GOOGLE_SEARCH_CX_EU },
+        { name: 'Think Tanks', cx: process.env.GOOGLE_SEARCH_CX_TT },
+        { name: 'News', cx: process.env.GOOGLE_SEARCH_CX_NEWS }
     ];
     
     const allResults = [];
@@ -76,8 +79,7 @@ async function fetchAllGovernmentSources(query) {
         if (!apiKey || !engine.cx) continue;
         
         try {
-            // Get more results per engine (num=10)
-            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${engine.cx}&q=${encodeURIComponent(query)}&num=10`;
+            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${engine.cx}&q=${encodeURIComponent(query)}&num=8`;
             const response = await fetch(url);
             
             if (response.ok) {
@@ -85,15 +87,9 @@ async function fetchAllGovernmentSources(query) {
                 if (data.items && data.items.length > 0) {
                     for (const item of data.items) {
                         let siteName = "";
-                        let isGovernment = false;
                         try {
                             const urlObj = new URL(item.link);
                             siteName = urlObj.hostname.replace('www.', '');
-                            // Mark government sources
-                            if (siteName.includes('.gov') || siteName.includes('.gc.ca') || 
-                                siteName.includes('.mil') || siteName.includes('.edu')) {
-                                isGovernment = true;
-                            }
                         } catch (e) {
                             siteName = engine.name;
                         }
@@ -103,9 +99,7 @@ async function fetchAllGovernmentSources(query) {
                             title: item.title,
                             url: item.link,
                             snippet: item.snippet,
-                            engine: engine.name,
-                            isGovernment: isGovernment,
-                            priority: engine.priority
+                            engine: engine.name
                         });
                     }
                 }
@@ -115,7 +109,7 @@ async function fetchAllGovernmentSources(query) {
         }
     }
     
-    // Remove duplicates by URL
+    // Remove duplicates
     const uniqueResults = [];
     const seenUrls = new Set();
     for (const result of allResults) {
@@ -125,107 +119,106 @@ async function fetchAllGovernmentSources(query) {
         }
     }
     
-    // Sort: Government sources first, then by priority
-    uniqueResults.sort((a, b) => {
-        if (a.isGovernment && !b.isGovernment) return -1;
-        if (!a.isGovernment && b.isGovernment) return 1;
-        return a.priority - b.priority;
-    });
-    
-    return { sources: uniqueResults.slice(0, 25) };
+    return { sources: uniqueResults.slice(0, 20) };
 }
 
 // ============================================
-// BUILD FACT CHECK FROM GOVERNMENT SOURCES ONLY
+// TAVILY DEEP SEARCH
 // ============================================
-function buildFactCheckFromGovernment(govResults, query) {
-    const q = query.toLowerCase();
-    const sources = govResults?.sources || [];
+async function fetchTavilyDeep(query) {
+    const apiKey = process.env.TAVILY_API_KEY;
+    if (!apiKey) return null;
     
-    // Separate government sources from others
-    const govSources = sources.filter(s => s.isGovernment);
-    const otherSources = sources.filter(s => !s.isGovernment);
-    
-    // Create cited claims from government sources FIRST
-    const citedClaims = [];
-    
-    // Add government sources as claims (these are the most authoritative)
-    for (const source of govSources.slice(0, 12)) {
-        if (source.url && source.name) {
-            citedClaims.push({
-                claim: source.snippet || source.title,
-                source: source.name.toUpperCase(),
-                url: source.url,
-                type: "Government Source"
-            });
-        }
-    }
-    
-    // Add other authoritative sources if needed
-    if (citedClaims.length < 5) {
-        for (const source of otherSources.slice(0, 8)) {
-            if (source.url && source.name) {
-                citedClaims.push({
-                    claim: source.snippet || source.title,
-                    source: source.name,
-                    url: source.url,
-                    type: "Source"
+    try {
+        const response = await fetch('https://api.tavily.com/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_key: apiKey,
+                query: query,
+                search_depth: 'advanced',
+                include_answer: true,
+                max_results: 12
+            })
+        });
+        
+        const data = await response.json();
+        
+        const sources = [];
+        if (data.results) {
+            for (const result of data.results) {
+                let siteName = "";
+                try {
+                    const urlObj = new URL(result.url);
+                    siteName = urlObj.hostname.replace('www.', '');
+                } catch (e) {
+                    siteName = "Source";
+                }
+                
+                sources.push({
+                    name: siteName,
+                    title: result.title,
+                    url: result.url,
+                    snippet: result.content?.substring(0, 350)
                 });
             }
         }
+        
+        return {
+            answer: data.answer,
+            sources: sources,
+            hasAnswer: !!data.answer
+        };
+        
+    } catch (error) {
+        console.error('[Tavily] Error:', error.message);
+        return null;
     }
-    
-    // Build summary based on government source snippets
-    let summary = "";
-    if (govSources.length > 0) {
-        // Use the top government source as the summary
-        const topGov = govSources[0];
-        summary = topGov.snippet ? topGov.snippet : `Official government information about "${query}".`;
-    } else {
-        summary = `Search official government websites below for accurate information about "${query}".`;
-    }
-    
-    return {
-        verdict: "🏛️ GOVERNMENT SOURCES",
-        summary: summary.length > 400 ? summary.substring(0, 400) + '...' : summary,
-        citedClaims: citedClaims,
-        governmentSearchLinks: getGovernmentSearchLinks(query),
-        tip: "Click any source above to read the official government document",
-        sourceCount: {
-            government: govSources.length,
-            total: sources.length
-        }
-    };
 }
 
 // ============================================
-// DIRECT GOVERNMENT SEARCH LINKS (ALWAYS WORKS)
+// GROQ DEEP ANALYSIS
 // ============================================
-function getGovernmentSearchLinks(query) {
-    const encoded = encodeURIComponent(query);
-    const q = query.toLowerCase();
+async function fetchGroqDeep(query) {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) return null;
     
-    const links = [
-        { name: "Canada.ca", url: `https://www.canada.ca/en/search.html?q=${encoded}`, type: "Government of Canada" },
-        { name: "USA.gov", url: `https://www.usa.gov/search?query=${encoded}`, type: "US Government" },
-        { name: "GOV.UK", url: `https://www.gov.uk/search/all?q=${encoded}`, type: "UK Government" },
-        { name: "Statistics Canada", url: `https://www.statcan.gc.ca/en/search?q=${encoded}`, type: "StatCan" },
-        { name: "Bureau of Labor Statistics", url: `https://www.bls.gov/search/?q=${encoded}`, type: "US BLS" },
-        { name: "European Union", url: `https://ec.europa.eu/search/?query=${encoded}`, type: "EU" },
-        { name: "United Nations", url: `https://www.un.org/en/search?q=${encoded}`, type: "UN" },
-        { name: "World Bank", url: `https://www.worldbank.org/en/search?q=${encoded}`, type: "World Bank" }
-    ];
-    
-    // Add ICE-specific links
-    if (q.includes('ice') || q.includes('immigration') || q.includes('training')) {
-        links.unshift(
-            { name: "ICE.gov", url: `https://www.ice.gov/search?search=${encoded}`, type: "ICE Official" },
-            { name: "FLETC.gov", url: `https://www.fletc.gov/search/node/${encoded}`, type: "FLETC Training" },
-            { name: "DHS.gov", url: `https://www.dhs.gov/search?query=${encoded}`, type: "Department of Homeland Security" }
-        );
+    try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    {
+                        role: 'system',
+                        content: `You are a research assistant. Provide a detailed, factual analysis of the topic. Include specific data points, statistics, dates, and key facts. Use a neutral, academic tone. Keep response under 400 words.`
+                    },
+                    {
+                        role: 'user',
+                        content: query
+                    }
+                ],
+                temperature: 0.2,
+                max_tokens: 600
+            })
+        });
+        
+        if (!response.ok) return null;
+        
+        const data = await response.json();
+        return {
+            analysis: data.choices?.[0]?.message?.content,
+            hasAnalysis: true
+        };
+        
+    } catch (error) {
+        console.error('[Groq] Error:', error.message);
+        return null;
     }
-    
-    return links;
 }
 
 // ============================================
@@ -293,6 +286,73 @@ async function fetchYouTube(query) {
     } catch (error) {
         return [];
     }
+}
+
+// ============================================
+// COMBINE ALL SOURCES
+// ============================================
+function combineAllSources(govResults, tavilyResult) {
+    const allSources = [];
+    
+    // Add government sources
+    if (govResults?.sources) {
+        allSources.push(...govResults.sources);
+    }
+    
+    // Add Tavily sources
+    if (tavilyResult?.sources) {
+        allSources.push(...tavilyResult.sources);
+    }
+    
+    // Remove duplicates by URL
+    const uniqueSources = [];
+    const seenUrls = new Set();
+    for (const source of allSources) {
+        if (!seenUrls.has(source.url)) {
+            seenUrls.add(source.url);
+            uniqueSources.push(source);
+        }
+    }
+    
+    return uniqueSources;
+}
+
+// ============================================
+// BUILD DEEP FACT CHECK
+// ============================================
+function buildDeepFactCheck(query, tavilyResult, groqResult, allSources) {
+    const q = query.toLowerCase();
+    
+    // Create cited claims from ALL sources
+    const citedClaims = [];
+    
+    for (const source of allSources.slice(0, 20)) {
+        if (source.url && source.name) {
+            citedClaims.push({
+                claim: source.snippet || source.title,
+                source: source.name,
+                url: source.url
+            });
+        }
+    }
+    
+    // Build the summary - prefer Groq analysis for depth, then Tavily
+    let summary = "";
+    if (groqResult?.analysis) {
+        summary = groqResult.analysis;
+    } else if (tavilyResult?.answer) {
+        summary = tavilyResult.answer;
+    } else {
+        summary = `Deep research results for "${query}" from government and official sources.`;
+    }
+    
+    return {
+        verdict: "✅ DEEP RESEARCH FINDINGS",
+        summary: summary,
+        citedClaims: citedClaims,
+        tip: "Click any source above to verify the information directly",
+        sourceCount: allSources.length
+    };
 }
 
 // ============================================
