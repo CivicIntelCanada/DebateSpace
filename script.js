@@ -1,5 +1,5 @@
 // ============================================
-// DEBATESPACE - DISPLAY WITH CITATIONS AND YOUTUBE
+// DEBATESPACE - CLEAN RESEARCH DISPLAY
 // ============================================
 
 async function searchDebate() {
@@ -38,7 +38,21 @@ async function searchDebate() {
 function renderResults(data, query) {
     const container = document.getElementById('results');
     
-    // Render citations
+    const renderKeyFindings = (findings) => {
+        if (!findings || findings.length === 0) return '';
+        return `
+            <div class="key-findings-section">
+                <div class="section-header">
+                    <span class="section-icon">📊</span>
+                    <span>KEY FINDINGS</span>
+                </div>
+                <div class="key-findings-list">
+                    ${findings.map(finding => `<div class="key-finding">📌 ${finding}</div>`).join('')}
+                </div>
+            </div>
+        `;
+    };
+    
     const renderCitations = (citations) => {
         if (!citations || citations.length === 0) {
             return '<div class="no-citations">No specific citations found. Try a different search term.</div>';
@@ -64,35 +78,8 @@ function renderResults(data, query) {
         `;
     };
     
-    // Render key findings
-    const renderKeyFindings = (findings) => {
-        if (!findings || findings.length === 0) return '';
-        return `
-            <div class="key-findings-section">
-                <div class="section-header">
-                    <span class="section-icon">📊</span>
-                    <span>KEY FINDINGS</span>
-                </div>
-                <div class="key-findings-list">
-                    ${findings.map(finding => `<div class="key-finding">📌 ${finding}</div>`).join('')}
-                </div>
-            </div>
-        `;
-    };
-    
-    // Render YouTube
     const renderYouTube = (videos) => {
-        if (!videos || videos.length === 0) {
-            return `
-                <div class="video-section">
-                    <div class="section-header">
-                        <span class="section-icon">📺</span>
-                        <span>VIDEO EXPLANATIONS</span>
-                    </div>
-                    <div class="no-videos">No videos found. Try searching YouTube directly.</div>
-                </div>
-            `;
-        }
+        if (!videos || videos.length === 0) return '';
         
         return `
             <div class="video-section">
@@ -105,9 +92,9 @@ function renderResults(data, query) {
                         <div class="video-card" onclick="window.open('${v.url}', '_blank')">
                             ${v.thumbnail ? `<img src="${v.thumbnail}" alt="${v.title}">` : '<div class="video-placeholder">🎬</div>'}
                             <div class="video-info">
-                                <div class="video-title">${v.title.length > 60 ? v.title.substring(0,60)+'...' : v.title}</div>
+                                <div class="video-title">${v.title}</div>
                                 <div class="video-channel">${v.channel}</div>
-                                ${v.type === 'search_link' ? '<div class="video-search-badge">🔍 Click to search YouTube</div>' : ''}
+                                ${v.type === 'search' ? '<div class="video-search-badge">🔍 Click to search YouTube</div>' : ''}
                             </div>
                         </div>
                     `).join('')}
@@ -123,17 +110,17 @@ function renderResults(data, query) {
                 <span>DEEP RESEARCH FINDINGS</span>
             </div>
             <div class="research-summary">${data.research?.summary || 'No summary available'}</div>
-            ${data.research?.detailedAnalysis ? `<div class="research-detailed"><strong>📋 DETAILED ANALYSIS:</strong><br>${data.research.detailedAnalysis}</div>` : ''}
             ${renderKeyFindings(data.research?.keyFindings)}
             ${renderCitations(data.research?.citations)}
-            <div class="research-tip">💡 Government sources are prioritized. Click any source to verify.</div>
+            <div class="research-tip">📜 Research includes archives, government data, academic sources, and news media. Click any source to verify.</div>
         </div>
         ${renderYouTube(data.youtube)}
         <div class="stats-footer">
             <span>🔍 "${query}"</span>
-            <span>🏛️ ${data.research?.sourceCounts?.government || 0} Government Sources</span>
-            <span>📰 ${data.research?.sourceCounts?.news || 0} News Sources</span>
-            <span>📋 ${data.research?.citations?.length || 0} Total Citations</span>
+            <span>📜 ${data.research?.sourceBreakdown?.archives || 0} Archives</span>
+            <span>🏛️ ${data.research?.sourceBreakdown?.government || 0} Government</span>
+            <span>🎓 ${data.research?.sourceBreakdown?.academic || 0} Academic</span>
+            <span>📋 ${data.research?.citations?.length || 0} Citations</span>
             <span>📺 ${data.youtube?.length || 0} Videos</span>
         </div>
     `;
@@ -173,14 +160,7 @@ const styles = `
     line-height: 1.6;
     color: #e4e4e7;
     margin-bottom: 20px;
-}
-.research-detailed {
-    background: rgba(0,0,0,0.2);
-    border-radius: 12px;
-    padding: 16px;
-    margin: 16px 0;
-    font-size: 0.9rem;
-    line-height: 1.5;
+    white-space: pre-wrap;
 }
 .research-tip {
     font-size: 0.8rem;
@@ -255,6 +235,8 @@ const styles = `
     font-size: 0.85rem;
     color: #d4d4d8;
     padding: 6px 0;
+    border-left: 2px solid #fbbf24;
+    padding-left: 12px;
 }
 .video-grid {
     display: grid;
@@ -352,4 +334,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Deep research with citations and YouTube');
+console.log('DebateSpace loaded - Deep research discovery mode');
