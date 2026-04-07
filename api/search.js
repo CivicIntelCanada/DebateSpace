@@ -1,7 +1,7 @@
 // ============================================
-// DEBATESPACE - MAXIMUM DEPTH RESEARCH SYSTEM
+// DEBATESPACE - DEEP RESEARCH WITH ANSWER SECTION
 // Priority: Government CX > Archives > Academic > News > Web
-// Features: Deep research, inline citations, news articles, video links in sources
+// Features: Clear answer + deep research + inline citations
 // ============================================
 
 export default async function handler(req, res) {
@@ -12,7 +12,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'No query provided' });
     }
     
-    console.log(`\n🔍 MAXIMUM DEPTH RESEARCH: "${query}"`);
+    console.log(`\n🔍 DEEP RESEARCH WITH ANSWER: "${query}"`);
     console.log(`⏰ Time: ${new Date().toISOString()}`);
     
     try {
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
         console.log(`\n📰 LAYER 5: News Articles...`);
         const newsArticles = await searchNewsArticles(query);
         
-        // LAYER 6: VIDEO LINKS (Integrated into sources)
+        // LAYER 6: VIDEO SOURCES (Integrated into sources)
         console.log(`\n📺 LAYER 6: Video Sources...`);
         const videoSources = await searchVideoSources(query);
         
@@ -58,12 +58,16 @@ export default async function handler(req, res) {
         console.log(`   Web: ${webSources.length}`);
         console.log(`   TOTAL SOURCES: ${allSources.length}`);
         
-        // Generate deep research with inline citations
-        const research = await generateDeepResearchWithCitations(query, allSources, prioritySources);
+        // Generate ANSWER (short, direct response)
+        const answer = await generateAnswer(query, allSources, prioritySources);
+        
+        // Generate DEEP RESEARCH (detailed findings with citations)
+        const research = await generateDeepResearch(query, allSources, prioritySources);
         
         return res.status(200).json({
             success: true,
             query: query,
+            answer: answer,
             research: research,
             newsArticles: newsArticles,
             allSources: allSources.slice(0, 50),
@@ -75,6 +79,10 @@ export default async function handler(req, res) {
         return res.status(200).json({
             success: true,
             query: query,
+            answer: {
+                text: `Unable to generate answer for "${query}". Please try a different search term.`,
+                citations: []
+            },
             research: {
                 summary: `Research results for "${query}". Please try a different search term.`,
                 keyFindings: [],
@@ -102,13 +110,12 @@ async function searchAllGovernmentCX(query) {
         { name: 'News', cx: process.env.GOOGLE_SEARCH_CX_NEWS, priority: 5 }
     ];
     
-    // Deep search terms to dig into government data
-    const searchTerms = [query, `${query} official data`, `${query} government report`, `${query} statistics`, `${query} documentation`];
+    const searchTerms = [query, `${query} official data`, `${query} government report`, `${query} statistics`];
     
     for (const engine of cxEngines) {
         if (!apiKey || !engine.cx) continue;
         
-        for (const term of searchTerms.slice(0, 3)) {
+        for (const term of searchTerms.slice(0, 2)) {
             try {
                 const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${engine.cx}&q=${encodeURIComponent(term)}&num=10`;
                 const response = await fetch(url);
@@ -153,7 +160,6 @@ async function searchSpecificAgencies(query) {
     const seenUrls = new Set();
     
     const agencies = [
-        // USA
         { domain: "fletc.gov", name: "FLETC", type: "Training" },
         { domain: "ice.gov", name: "ICE", type: "Immigration" },
         { domain: "dhs.gov", name: "DHS", type: "Homeland Security" },
@@ -162,30 +168,18 @@ async function searchSpecificAgencies(query) {
         { domain: "federalreserve.gov", name: "Federal Reserve", type: "Monetary" },
         { domain: "cdc.gov", name: "CDC", type: "Health" },
         { domain: "nih.gov", name: "NIH", type: "Research" },
-        { domain: "state.gov", name: "State Department", type: "Foreign Affairs" },
-        { domain: "treasury.gov", name: "Treasury", type: "Finance" },
-        // Canada
         { domain: "statcan.gc.ca", name: "Statistics Canada", type: "Statistics" },
         { domain: "bankofcanada.ca", name: "Bank of Canada", type: "Monetary" },
         { domain: "canada.ca", name: "Government of Canada", type: "Federal" },
-        { domain: "rcmp-grc.gc.ca", name: "RCMP", type: "Police" },
-        { domain: "csis-scrs.gc.ca", name: "CSIS", type: "Intelligence" },
-        // UK
         { domain: "gov.uk", name: "GOV.UK", type: "Government" },
-        { domain: "parliament.uk", name: "UK Parliament", type: "Legislative" },
-        { domain: "mod.uk", name: "Ministry of Defence", type: "Defense" },
-        // International
         { domain: "un.org", name: "United Nations", type: "International" },
         { domain: "who.int", name: "WHO", type: "Health" },
-        { domain: "worldbank.org", name: "World Bank", type: "Development" },
-        { domain: "imf.org", name: "IMF", type: "Finance" },
-        { domain: "nato.int", name: "NATO", type: "Defense" },
-        { domain: "oecd.org", name: "OECD", type: "Economic" }
+        { domain: "worldbank.org", name: "World Bank", type: "Development" }
     ];
     
     for (const agency of agencies) {
         try {
-            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA}&q=${encodeURIComponent(query)}&siteSearch=${agency.domain}&siteSearchFilter=i&num=6`;
+            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA}&q=${encodeURIComponent(query)}&siteSearch=${agency.domain}&siteSearchFilter=i&num=5`;
             const response = await fetch(url);
             
             if (response.ok) {
@@ -214,7 +208,7 @@ async function searchSpecificAgencies(query) {
 }
 
 // ============================================
-// LAYER 3: GOVERNMENT ARCHIVES (Deep historical/scrubbed)
+// LAYER 3: GOVERNMENT ARCHIVES
 // ============================================
 async function searchGovernmentArchives(query) {
     const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
@@ -227,39 +221,33 @@ async function searchGovernmentArchives(query) {
         { domain: "census.gov", name: "US Census Bureau", type: "Historical Data" },
         { domain: "data.gov", name: "US Government Data", type: "Open Data" },
         { domain: "federalregister.gov", name: "Federal Register", type: "Official Records" },
-        { domain: "govinfo.gov", name: "GovInfo", type: "Government Documents" },
-        { domain: "loc.gov", name: "Library of Congress", type: "Archives" },
-        { domain: "nara.gov", name: "National Archives", type: "Records" }
+        { domain: "govinfo.gov", name: "GovInfo", type: "Government Documents" }
     ];
     
-    const archiveTerms = [`${query} history`, `${query} record`, `${query} document`, `${query} archive`, `${query} original source`];
-    
     for (const archive of archiveDomains) {
-        for (const term of archiveTerms.slice(0, 2)) {
-            try {
-                const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA}&q=${encodeURIComponent(term)}&siteSearch=${archive.domain}&siteSearchFilter=i&num=5`;
-                const response = await fetch(url);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.items && data.items.length > 0) {
-                        for (const item of data.items) {
-                            if (!seenUrls.has(item.link)) {
-                                seenUrls.add(item.link);
-                                sources.push({
-                                    title: item.title,
-                                    url: item.link,
-                                    snippet: item.snippet,
-                                    source: `${archive.name} (${archive.type})`,
-                                    type: "archive"
-                                });
-                            }
+        try {
+            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA}&q=${encodeURIComponent(query)}&siteSearch=${archive.domain}&siteSearchFilter=i&num=5`;
+            const response = await fetch(url);
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.items && data.items.length > 0) {
+                    for (const item of data.items) {
+                        if (!seenUrls.has(item.link)) {
+                            seenUrls.add(item.link);
+                            sources.push({
+                                title: item.title,
+                                url: item.link,
+                                snippet: item.snippet,
+                                source: `${archive.name} (${archive.type})`,
+                                type: "archive"
+                            });
                         }
                     }
                 }
-            } catch (error) {
-                console.error(`[Archive ${archive.name}] Error:`, error.message);
             }
+        } catch (error) {
+            console.error(`[Archive ${archive.name}] Error:`, error.message);
         }
     }
     
@@ -274,41 +262,37 @@ async function searchAcademicResearch(query) {
     const sources = [];
     const seenUrls = new Set();
     
-    const academicDomains = ['.edu', '.ac.uk', '.edu.au', '.ac.nz', 'scholar.google.com', 'researchgate.net', 'jstor.org', 'springer.com'];
-    
-    const academicTerms = [`${query} study`, `${query} research`, `${query} analysis`, `${query} paper`];
+    const academicDomains = ['.edu', '.ac.uk', '.edu.au', 'scholar.google.com', 'researchgate.net'];
     
     for (const domain of academicDomains) {
-        for (const term of academicTerms.slice(0, 2)) {
-            try {
-                const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA}&q=${encodeURIComponent(term)}&siteSearch=${domain}&siteSearchFilter=i&num=5`;
-                const response = await fetch(url);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.items && data.items.length > 0) {
-                        for (const item of data.items) {
-                            if (!seenUrls.has(item.link)) {
-                                seenUrls.add(item.link);
-                                let siteName = "";
-                                try {
-                                    siteName = new URL(item.link).hostname.replace('www.', '');
-                                } catch(e) {}
-                                
-                                sources.push({
-                                    title: item.title,
-                                    url: item.link,
-                                    snippet: item.snippet,
-                                    source: `Academic: ${siteName}`,
-                                    type: "academic"
-                                });
-                            }
+        try {
+            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA}&q=${encodeURIComponent(query)}&siteSearch=${domain}&siteSearchFilter=i&num=5`;
+            const response = await fetch(url);
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.items && data.items.length > 0) {
+                    for (const item of data.items) {
+                        if (!seenUrls.has(item.link)) {
+                            seenUrls.add(item.link);
+                            let siteName = "";
+                            try {
+                                siteName = new URL(item.link).hostname.replace('www.', '');
+                            } catch(e) {}
+                            
+                            sources.push({
+                                title: item.title,
+                                url: item.link,
+                                snippet: item.snippet,
+                                source: `Academic: ${siteName}`,
+                                type: "academic"
+                            });
                         }
                     }
                 }
-            } catch (error) {
-                console.error(`[Academic] Error:`, error.message);
             }
+        } catch (error) {
+            console.error(`[Academic] Error:`, error.message);
         }
     }
     
@@ -325,7 +309,7 @@ async function searchNewsArticles(query) {
     if (!apiKey) return articles;
     
     try {
-        const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=30&token=${apiKey}`;
+        const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=25&token=${apiKey}`;
         const response = await fetch(url);
         
         if (response.ok) {
@@ -356,14 +340,13 @@ async function searchNewsArticles(query) {
 }
 
 // ============================================
-// LAYER 6: VIDEO SOURCES (Integrated into sources)
+// LAYER 6: VIDEO SOURCES
 // ============================================
 async function searchVideoSources(query) {
     const sources = [];
     const apiKey = process.env.YOUTUBE_API_KEY;
     const encoded = encodeURIComponent(query);
     
-    // Add YouTube search as a source
     sources.push({
         title: `YouTube Search Results for "${query}"`,
         url: `https://www.youtube.com/results?search_query=${encoded}`,
@@ -417,7 +400,7 @@ async function searchGeneralWeb(query) {
                 query: query,
                 search_depth: 'advanced',
                 include_answer: true,
-                max_results: 25
+                max_results: 20
             })
         });
         
@@ -449,19 +432,94 @@ async function searchGeneralWeb(query) {
 }
 
 // ============================================
-// GENERATE DEEP RESEARCH WITH INLINE CITATIONS
+// GENERATE ANSWER (Short, direct, with citations)
 // ============================================
-async function generateDeepResearchWithCitations(query, allSources, prioritySources) {
+async function generateAnswer(query, allSources, prioritySources) {
+    const groqKey = process.env.GROQ_API_KEY;
+    let answerText = "";
+    const answerCitations = [];
+    
+    // Build citations for answer (use top priority sources)
+    let citationId = 1;
+    const sourceMap = new Map();
+    
+    for (const source of prioritySources.slice(0, 15)) {
+        if (source.url && source.snippet) {
+            sourceMap.set(citationId, source);
+            answerCitations.push({
+                id: citationId,
+                source: source.source,
+                url: source.url,
+                text: source.snippet.substring(0, 200)
+            });
+            citationId++;
+        }
+    }
+    
+    if (groqKey && answerCitations.length > 0) {
+        try {
+            const sourcesText = answerCitations.map(c => `[${c.id}] ${c.text}`).join('\n\n');
+            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${groqKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.3-70b-versatile',
+                    messages: [
+                        {
+                            role: 'system',
+                            content: `You are a research analyst. Provide a CLEAR, DIRECT answer to the user's question based ONLY on the sources.
+
+RULES:
+1. Give a concise answer (2-4 sentences)
+2. Cite every factual claim with [X]
+3. Be specific with numbers and dates
+4. DO NOT add information not in the sources`
+                        },
+                        {
+                            role: 'user',
+                            content: `Question: ${query}\n\nSources:\n${sourcesText}`
+                        }
+                    ],
+                    temperature: 0.1,
+                    max_tokens: 300
+                })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                answerText = data.choices?.[0]?.message?.content || `Based on available sources, information about "${query}" can be found in the research below.`;
+            } else {
+                answerText = `Based on ${answerCitations.length} sources, information about "${query}" is available in the research section below.`;
+            }
+        } catch (error) {
+            answerText = `Based on ${answerCitations.length} sources, information about "${query}" is available in the research section below.`;
+        }
+    } else {
+        answerText = `Based on ${answerCitations.length} sources, information about "${query}" is available in the research section below.`;
+    }
+    
+    return {
+        text: answerText,
+        citations: answerCitations
+    };
+}
+
+// ============================================
+// GENERATE DEEP RESEARCH (Detailed with citations)
+// ============================================
+async function generateDeepResearch(query, allSources, prioritySources) {
     const groqKey = process.env.GROQ_API_KEY;
     const citations = [];
     const keyFindings = [];
     let researchText = "";
     
-    // Build citations with source numbers - prioritize government and archives
+    // Build citations with source numbers
     let citationId = 1;
     const sourceMap = new Map();
     
-    // Order: Government CX > Government Agencies > Archives > Academic > Video > Web
     const orderedSources = [...prioritySources, ...allSources.filter(s => s.type === "academic"), ...allSources.filter(s => s.type === "video"), ...allSources.filter(s => s.type === "web")];
     
     for (const source of orderedSources.slice(0, 40)) {
@@ -474,8 +532,7 @@ async function generateDeepResearchWithCitations(query, allSources, prioritySour
             else if (source.type === "archive") typeIcon = "📜 ARCHIVE";
             else if (source.type === "academic") typeIcon = "🎓 ACADEMIC";
             else if (source.type === "video") typeIcon = "📺 VIDEO";
-            else if (source.type === "web") typeIcon = "🌐 WEB";
-            else typeIcon = "📄 SOURCE";
+            else typeIcon = "🌐 WEB";
             
             citations.push({
                 id: citationId,
@@ -488,8 +545,8 @@ async function generateDeepResearchWithCitations(query, allSources, prioritySour
         }
     }
     
-    // Extract key findings from priority sources
-    for (const source of prioritySources.slice(0, 20)) {
+    // Extract key findings
+    for (const source of prioritySources.slice(0, 15)) {
         if (source.snippet) {
             const sentences = source.snippet.split(/[.!?]+/);
             for (const sentence of sentences) {
@@ -503,7 +560,7 @@ async function generateDeepResearchWithCitations(query, allSources, prioritySour
         }
     }
     
-    // Use Groq to generate deep research with citations
+    // Generate deep research with Groq
     if (groqKey && citations.length > 0) {
         try {
             const sourcesText = citations.map(c => `[${c.id}] ${c.text}`).join('\n\n');
@@ -520,24 +577,20 @@ async function generateDeepResearchWithCitations(query, allSources, prioritySour
                             role: 'system',
                             content: `You are a senior research analyst. Create a DETAILED, FACTUAL research report based ONLY on the provided sources.
 
-CRITICAL RULES:
-1. Cite EVERY factual claim with [X] where X is the source number
-2. Use MULTIPLE citations when a claim is supported by multiple sources [1][2][3]
-3. Prioritize government and archive sources for accuracy
-4. DO NOT add information not in the sources
-5. Be specific with numbers, dates, and statistics
-6. Organize information logically with clear sections
-7. DO NOT use phrases like "200-300 words" or "summary"
-
-The research should be as deep and thorough as possible, extracting all relevant facts from the sources.`
+RULES:
+1. Cite EVERY factual claim with [X]
+2. Use MULTIPLE citations when supported [1][2][3]
+3. Prioritize government and archive sources
+4. Be specific with numbers, dates, and statistics
+5. DO NOT add information not in the sources`
                         },
                         {
                             role: 'user',
-                            content: `Query: ${query}\n\nTotal Sources: ${citations.length}\nGovernment/Archive Sources: ${prioritySources.length}\n\nSources:\n${sourcesText}`
+                            content: `Query: ${query}\n\nTotal Sources: ${citations.length}\nGovernment/Archive: ${prioritySources.length}\n\nSources:\n${sourcesText}`
                         }
                     ],
                     temperature: 0.1,
-                    max_tokens: 2500
+                    max_tokens: 2000
                 })
             });
             
@@ -545,7 +598,6 @@ The research should be as deep and thorough as possible, extracting all relevant
                 const data = await response.json();
                 researchText = data.choices?.[0]?.message?.content || `Research findings for "${query}" based on ${citations.length} sources.`;
                 researchText = researchText.replace(/\d{3}-\d{3}\s*words?/gi, '');
-                researchText = researchText.replace(/Comprehensive Summary:?/gi, '');
                 researchText = researchText.trim();
             } else {
                 researchText = `Research findings for "${query}" based on ${citations.length} sources.`;
@@ -567,12 +619,11 @@ The research should be as deep and thorough as possible, extracting all relevant
     
     return {
         summary: researchText,
-        keyFindings: uniqueFindings.slice(0, 15),
+        keyFindings: uniqueFindings.slice(0, 12),
         citations: citations,
         sourceCounts: {
             government: prioritySources.length,
             academic: allSources.filter(s => s.type === "academic").length,
-            video: allSources.filter(s => s.type === "video").length,
             total: citations.length
         }
     };
