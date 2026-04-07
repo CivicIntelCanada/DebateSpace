@@ -1,5 +1,5 @@
 // ============================================
-// DEBATESPACE - CLEAN RESEARCH DISPLAY
+// DEBATESPACE - CLEAN RESEARCH DISPLAY WITH FIXED YOUTUBE
 // ============================================
 
 async function searchDebate() {
@@ -79,7 +79,17 @@ function renderResults(data, query) {
     };
     
     const renderYouTube = (videos) => {
-        if (!videos || videos.length === 0) return '';
+        if (!videos || videos.length === 0) {
+            return `
+                <div class="video-section">
+                    <div class="section-header">
+                        <span class="section-icon">📺</span>
+                        <span>VIDEO EXPLANATIONS</span>
+                    </div>
+                    <div class="no-videos">No videos found for this topic. Try searching YouTube directly.</div>
+                </div>
+            `;
+        }
         
         return `
             <div class="video-section">
@@ -94,7 +104,8 @@ function renderResults(data, query) {
                             <div class="video-info">
                                 <div class="video-title">${v.title}</div>
                                 <div class="video-channel">${v.channel}</div>
-                                ${v.type === 'search' ? '<div class="video-search-badge">🔍 Click to search YouTube</div>' : ''}
+                                ${v.views ? `<div class="video-views">👁️ ${v.views} views</div>` : ''}
+                                ${v.isSearchLink ? '<div class="video-search-badge">🔍 Click to search YouTube</div>' : ''}
                             </div>
                         </div>
                     `).join('')}
@@ -269,6 +280,7 @@ const styles = `
     margin-bottom: 4px;
 }
 .video-channel { font-size: 0.65rem; color: #71717a; }
+.video-views { font-size: 0.6rem; color: #71717a; margin-top: 4px; }
 .video-search-badge {
     font-size: 0.6rem;
     color: #60a5fa;
@@ -334,4 +346,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Deep research discovery mode');
+console.log('DebateSpace loaded - Deep research discovery mode with fixed YouTube');
