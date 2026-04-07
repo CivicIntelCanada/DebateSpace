@@ -1,6 +1,6 @@
 // ============================================
 // DEBATESPACE - COMPLETE DISPLAY
-// Sections: Research with inline citations, News Articles, YouTube, All Sources
+// Sections: Research with inline citations, News Articles, All Sources
 // ============================================
 
 async function searchDebate() {
@@ -74,11 +74,11 @@ function renderResults(data, query) {
             return match;
         });
         
-        // Convert line breaks
-        formattedText = formattedText.replace(/\n\n/g, '</p><p>');
-        formattedText = formattedText.replace(/\n/g, '<br>');
+        // Convert line breaks to paragraphs
+        const paragraphs = formattedText.split(/\n\n+/);
+        formattedText = paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
         
-        return `<p>${formattedText}</p>`;
+        return formattedText;
     };
     
     const renderKeyFindings = (findings) => {
@@ -140,33 +140,7 @@ function renderResults(data, query) {
                                 <span class="news-source">📌 ${article.source}</span>
                                 ${article.date ? `<span class="news-date">📅 ${article.date}</span>` : ''}
                             </div>
-                            ${article.description ? `<div class="news-description">${article.description.substring(0, 150)}...</div>` : ''}
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
-    };
-    
-    const renderYouTube = (videos) => {
-        if (!videos || videos.length === 0) return '';
-        
-        return `
-            <div class="video-section">
-                <div class="section-header">
-                    <span class="section-icon">📺</span>
-                    <span>VIDEO EXPLANATIONS (${videos.length})</span>
-                </div>
-                <div class="video-grid">
-                    ${videos.map(v => `
-                        <div class="video-card" onclick="window.open('${v.url}', '_blank')">
-                            ${v.thumbnail ? `<img src="${v.thumbnail}" alt="${v.title}">` : '<div class="video-placeholder">🎬</div>'}
-                            <div class="video-info">
-                                <div class="video-title">${v.title}</div>
-                                <div class="video-channel">${v.channel}</div>
-                                ${v.views && v.views !== 'N/A' ? `<div class="video-views">👁️ ${v.views} views</div>` : ''}
-                                ${v.type === 'search' ? '<div class="video-search-badge">🔍 Click to search YouTube</div>' : ''}
-                            </div>
+                            ${article.description ? `<div class="news-description">${article.description}...</div>` : ''}
                         </div>
                     `).join('')}
                 </div>
@@ -183,13 +157,23 @@ function renderResults(data, query) {
                     <span>ALL RESEARCH SOURCES (${sources.length})</span>
                 </div>
                 <div class="allsources-list">
-                    ${sources.map((source, idx) => `
-                        <div class="allsource-item">
-                            <span class="allsource-num">${idx + 1}.</span>
-                            <a href="${source.url}" target="_blank" class="allsource-link">${source.title}</a>
-                            <span class="allsource-domain">${source.source}</span>
-                        </div>
-                    `).join('')}
+                    ${sources.map((source, idx) => {
+                        let typeIcon = "";
+                        if (source.type === "government_cx" || source.type === "government") typeIcon = "🏛️";
+                        else if (source.type === "archive") typeIcon = "📜";
+                        else if (source.type === "academic") typeIcon = "🎓";
+                        else if (source.type === "video") typeIcon = "📺";
+                        else typeIcon = "🌐";
+                        
+                        return `
+                            <div class="allsource-item">
+                                <span class="allsource-num">${idx + 1}.</span>
+                                <span class="allsource-type">${typeIcon}</span>
+                                <a href="${source.url}" target="_blank" class="allsource-link">${source.title}</a>
+                                <span class="allsource-domain">${source.source}</span>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
@@ -209,7 +193,6 @@ function renderResults(data, query) {
         </div>
         ${renderCitations(data.research?.citations)}
         ${renderNewsArticles(data.newsArticles)}
-        ${renderYouTube(data.youtube)}
         ${renderAllSources(data.allSources)}
         <div class="stats-footer">
             <span>🔍 "${query}"</span>
@@ -217,8 +200,7 @@ function renderResults(data, query) {
             <span>🎓 ${data.research?.sourceCounts?.academic || 0} Academic</span>
             <span>📰 ${data.newsArticles?.length || 0} News</span>
             <span>📋 ${data.research?.citations?.length || 0} Citations</span>
-            <span>📺 ${data.youtube?.length || 0} Videos</span>
-            <span>📚 ${data.allSources?.length || 0} Total</span>
+            <span>📚 ${data.allSources?.length || 0} Total Sources</span>
         </div>
     `;
     
@@ -292,7 +274,7 @@ const styles = `
     gap: 10px;
 }
 .section-icon { font-size: 1.1rem; }
-.citations-section, .key-findings-section, .news-section, .video-section, .allsources-section {
+.citations-section, .key-findings-section, .news-section, .allsources-section {
     background: rgba(20, 20, 35, 0.85);
     backdrop-filter: blur(10px);
     border-radius: 20px;
@@ -397,55 +379,18 @@ const styles = `
     font-size: 0.75rem;
     color: #a1a1aa;
 }
-.video-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-}
-.video-card {
-    background: rgba(0, 0, 0, 0.4);
-    border-radius: 14px;
-    overflow: hidden;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-.video-card:hover { transform: translateY(-3px); }
-.video-card img { width: 100%; height: 140px; object-fit: cover; }
-.video-placeholder {
-    width: 100%;
-    height: 140px;
-    background: #1a1a2e;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2.5rem;
-}
-.video-info { padding: 10px; }
-.video-title {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #e4e4e7;
-    margin-bottom: 4px;
-}
-.video-channel { font-size: 0.65rem; color: #71717a; }
-.video-views { font-size: 0.6rem; color: #71717a; margin-top: 4px; }
-.video-search-badge {
-    font-size: 0.6rem;
-    color: #60a5fa;
-    margin-top: 6px;
-}
 .allsources-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-height: 400px;
+    max-height: 500px;
     overflow-y: auto;
 }
 .allsource-item {
     font-size: 0.75rem;
-    padding: 6px 0;
+    padding: 8px 0;
     display: flex;
-    gap: 8px;
+    gap: 10px;
     align-items: center;
     flex-wrap: wrap;
     border-bottom: 1px solid rgba(255,255,255,0.05);
@@ -453,16 +398,26 @@ const styles = `
 .allsource-num {
     color: #71717a;
     min-width: 30px;
+    font-size: 0.7rem;
+}
+.allsource-type {
+    font-size: 0.8rem;
+    min-width: 30px;
 }
 .allsource-link {
     color: #60a5fa;
     text-decoration: none;
     flex: 1;
+    font-size: 0.8rem;
 }
 .allsource-link:hover { text-decoration: underline; }
 .allsource-domain {
     font-size: 0.65rem;
     color: #71717a;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .stats-footer {
     background: rgba(0, 0, 0, 0.3);
@@ -502,11 +457,12 @@ const styles = `
     margin-top: 16px;
 }
 @media (max-width: 768px) {
-    .research-card, .citations-section, .key-findings-section, .news-section, .video-section, .allsources-section { padding: 16px; }
-    .video-grid { grid-template-columns: 1fr; }
+    .research-card, .citations-section, .key-findings-section, .news-section, .allsources-section { padding: 16px; }
     .stats-footer { gap: 10px; }
     .citation-item { flex-direction: column; }
     .citation-source { flex-direction: column; align-items: flex-start; }
+    .allsource-item { flex-wrap: wrap; }
+    .allsource-domain { max-width: none; white-space: normal; }
 }
 </style>
 `;
@@ -525,4 +481,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Maximum depth research with full citations');
+console.log('DebateSpace loaded - Maximum depth research with government priority');
