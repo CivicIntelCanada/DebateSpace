@@ -1,7 +1,7 @@
 // ============================================
-// DEBATESPACE - PURE DISCOVERY RESEARCH
-// No hardcoded facts - discovers truth through government sources
-// Every claim has a clickable citation [1] to the source
+// DEBATESPACE - PURE DISCOVERY RESEARCH WITH AI ANALYSIS
+// Original research code preserved exactly
+// Added: AI Analysis section that reviews the research findings
 // ============================================
 
 export default async function handler(req, res) {
@@ -84,9 +84,14 @@ export default async function handler(req, res) {
         console.log(`   Archives: ${uniqueResults.filter(r => r.type === 'archive').length}`);
         
         // ========================================
-        // BUILD ANSWER WITH CITATIONS FOR EVERY CLAIM
+        // BUILD ANSWER WITH CITATIONS (Original)
         // ========================================
-        const answer = buildAnswerWithCitations(query, uniqueResults);
+        const researchAnswer = buildAnswerWithCitations(query, uniqueResults);
+        
+        // ========================================
+        // NEW: AI ANALYSIS OF THE RESEARCH FINDINGS
+        // ========================================
+        const aiAnalysis = await generateAIAnalysis(query, uniqueResults, researchAnswer);
         
         // ========================================
         // GET SUPPLEMENTAL CONTENT
@@ -97,7 +102,8 @@ export default async function handler(req, res) {
         return res.status(200).json({
             success: true,
             query: query,
-            answer: answer,
+            research: researchAnswer,      // Original research with citations
+            aiAnalysis: aiAnalysis,         // NEW: AI analysis of the research
             newsArticles: newsResults,
             videoSources: videoResults,
             allSources: uniqueResults.slice(0, 50),
@@ -109,11 +115,15 @@ export default async function handler(req, res) {
         return res.status(200).json({
             success: true,
             query: query,
-            answer: {
+            research: {
                 text: `Search completed. Found sources about "${query}". Please review the sources below.`,
                 sentences: [],
                 citations: [],
                 evidenceCount: 0
+            },
+            aiAnalysis: {
+                text: `Unable to generate analysis at this time. Please review the research sources below.`,
+                sourcesUsed: 0
             },
             newsArticles: [],
             videoSources: [],
@@ -123,12 +133,109 @@ export default async function handler(req, res) {
 }
 
 // ============================================
-// SEARCH A CX ENGINE
+// NEW: GENERATE AI ANALYSIS FROM RESEARCH FINDINGS
+// ============================================
+async function generateAIAnalysis(query, sources, researchAnswer) {
+    const groqKey = process.env.GROQ_API_KEY;
+    
+    // If no Groq key or no sources, return fallback
+    if (!groqKey || sources.length === 0) {
+        return {
+            text: `Based on ${sources.length} sources, the research findings are presented in the citations above. Please review the source materials for detailed information.`,
+            sourcesUsed: sources.length,
+            modelUsed: groqKey ? "Groq AI" : "No AI available"
+        };
+    }
+    
+    // Prepare the research data for AI analysis
+    const topSources = sources.slice(0, 15);
+    const sourceTexts = [];
+    
+    for (const source of topSources) {
+        let quote = source.snippet || source.title || '';
+        quote = quote.replace(/\s+/g, ' ').trim();
+        if (quote.length > 50) {
+            sourceTexts.push(`[${source.source}]: ${quote.substring(0, 400)}`);
+        }
+    }
+    
+    const researchSummary = researchAnswer.text || `Found ${sources.length} sources about "${query}".`;
+    
+    try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${groqKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    {
+                        role: 'system',
+                        content: `You are an objective research analyst. Your ONLY job is to analyze the provided research sources and summarize what they say.
+
+STRICT RULES:
+1. ONLY use information from the provided sources
+2. DO NOT add any outside knowledge or opinions
+3. DO NOT make assumptions beyond what the sources state
+4. Be neutral and factual
+5. If sources disagree, note the disagreement
+6. Keep your analysis concise (200-300 words)
+7. DO NOT include phrases like "based on the sources" or "according to the sources" - just state the facts
+
+Your analysis should be a clear, direct answer to the user's question based SOLELY on the research provided.`
+                    },
+                    {
+                        role: 'user',
+                        content: `User Question: ${query}
+
+Research Sources Found:
+${sourceTexts.join('\n\n')}
+
+Overall Research Summary: ${researchSummary}
+
+Based ONLY on these research sources, provide a clear answer to the user's question.`
+                    }
+                ],
+                temperature: 0.1,
+                max_tokens: 600
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            const analysis = data.choices?.[0]?.message?.content || `Based on ${sources.length} sources, the research findings are presented in the citations above.`;
+            
+            return {
+                text: analysis,
+                sourcesUsed: sources.length,
+                modelUsed: "Groq Llama 3.3 (70B)",
+                disclaimer: "AI analysis based solely on the research sources above"
+            };
+        } else {
+            return {
+                text: `Analysis unavailable. Please review the ${sources.length} research sources above for information about "${query}".`,
+                sourcesUsed: sources.length,
+                modelUsed: "Error - using fallback"
+            };
+        }
+        
+    } catch (error) {
+        console.error('AI Analysis error:', error.message);
+        return {
+            text: `Unable to generate AI analysis. Please review the ${sources.length} research sources above.`,
+            sourcesUsed: sources.length,
+            modelUsed: "Error - using fallback"
+        };
+    }
+}
+
+// ============================================
+// SEARCH A CX ENGINE (UNCHANGED)
 // ============================================
 async function searchCXEngine(apiKey, cx, query) {
     const results = [];
-    
-    // Use multiple search terms to get deeper results
     const searchTerms = [query, `${query} official data`, `${query} report`, `${query} statistics`];
     
     for (const term of searchTerms.slice(0, 3)) {
@@ -163,7 +270,7 @@ async function searchCXEngine(apiKey, cx, query) {
 }
 
 // ============================================
-// SEARCH GOVERNMENT DOMAINS
+// SEARCH GOVERNMENT DOMAINS (UNCHANGED)
 // ============================================
 async function searchGovernmentDomain(apiKey, domain, query) {
     const results = [];
@@ -198,7 +305,7 @@ async function searchGovernmentDomain(apiKey, domain, query) {
 }
 
 // ============================================
-// SEARCH ARCHIVES
+// SEARCH ARCHIVES (UNCHANGED)
 // ============================================
 async function searchArchives(query) {
     const results = [];
@@ -239,7 +346,7 @@ async function searchArchives(query) {
 }
 
 // ============================================
-// TAVILY SEARCH (FALLBACK)
+// TAVILY SEARCH (UNCHANGED)
 // ============================================
 async function tavilySearch(query) {
     const apiKey = process.env.TAVILY_API_KEY;
@@ -283,7 +390,7 @@ async function tavilySearch(query) {
 }
 
 // ============================================
-// GET NEWS (DISPLAY ONLY)
+// GET NEWS (UNCHANGED)
 // ============================================
 async function getNews(query) {
     const apiKey = process.env.GNEWS_API_KEY;
@@ -314,7 +421,7 @@ async function getNews(query) {
 }
 
 // ============================================
-// GET VIDEOS (DISPLAY ONLY)
+// GET VIDEOS (UNCHANGED)
 // ============================================
 async function getVideos(query) {
     const apiKey = process.env.YOUTUBE_API_KEY;
@@ -344,10 +451,9 @@ async function getVideos(query) {
 }
 
 // ============================================
-// BUILD ANSWER WITH CITATIONS FOR EVERY CLAIM
+// BUILD ANSWER WITH CITATIONS (UNCHANGED)
 // ============================================
 function buildAnswerWithCitations(query, sources) {
-    // Prioritize government sources
     const govSources = sources.filter(s => s.isGovernment === true);
     const otherSources = sources.filter(s => !s.isGovernment);
     const sortedSources = [...govSources, ...otherSources];
@@ -365,18 +471,15 @@ function buildAnswerWithCitations(query, sources) {
     const sentences = [];
     let citationId = 1;
     
-    // Add introduction
     sentences.push({
         text: `Found ${sortedSources.length} sources (${govSources.length} government sources) about "${query}":`,
         citationId: null
     });
     
-    // Extract factual statements from each source
     for (const source of sortedSources.slice(0, 20)) {
         let quote = source.snippet || source.title || '';
         quote = quote.replace(/\s+/g, ' ').trim();
         
-        // Only include substantive quotes (not search prompts or navigation text)
         if (quote.length > 50 && 
             !quote.toLowerCase().includes('search') && 
             !quote.toLowerCase().includes('loading') &&
@@ -401,13 +504,11 @@ function buildAnswerWithCitations(query, sources) {
         }
     }
     
-    // Add footer note
     sentences.push({
         text: `Click any [number] to verify the original source. Each citation contains a direct quote from the source document.`,
         citationId: null
     });
     
-    // Build full text with citation markers
     let fullText = "";
     for (let i = 0; i < sentences.length; i++) {
         const sentence = sentences[i];
