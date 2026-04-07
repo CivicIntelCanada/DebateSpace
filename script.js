@@ -1,5 +1,5 @@
 // ============================================
-// DEBATESPACE - DISPLAY WITH CITATIONS
+// DEBATESPACE - DISPLAY WITH CITATIONS AFTER EVERY CLAIM
 // ============================================
 
 async function searchDebate() {
@@ -38,7 +38,7 @@ async function searchDebate() {
 function renderResults(data, query) {
     const container = document.getElementById('results');
     
-    // Format answer with clickable citations
+    // Format answer with citation numbers after each claim
     const formatAnswer = (answer) => {
         if (!answer || !answer.text) return '<p>No answer available.</p>';
         
@@ -48,7 +48,7 @@ function renderResults(data, query) {
         formattedText = formattedText.replace(/\[(\d+)\]/g, (match, num) => {
             const citation = answer.citations?.find(c => c.id == num);
             if (citation) {
-                return `<a href="${citation.url}" target="_blank" class="citation-link-inline" title="${citation.source}">[${num}]</a>`;
+                return `<a href="${citation.url}" target="_blank" class="citation-link-inline" title="Click to verify source: ${citation.source}">[${num}]</a>`;
             }
             return match;
         });
@@ -144,7 +144,7 @@ function renderResults(data, query) {
                 <div class="allsources-list">
                     ${sources.map((source, idx) => {
                         let typeIcon = "";
-                        if (source.isGovernment || source.type === "government") typeIcon = "🏛️";
+                        if (source.isGovernment) typeIcon = "🏛️";
                         else if (source.type === "archive") typeIcon = "📜";
                         else typeIcon = "🌐";
                         
@@ -163,7 +163,7 @@ function renderResults(data, query) {
     };
     
     let html = `
-        <!-- ANSWER SECTION -->
+        <!-- ANSWER SECTION WITH CITATIONS -->
         <div class="answer-card">
             <div class="answer-header">
                 <span class="answer-icon">✅</span>
@@ -238,6 +238,7 @@ const styles = `
     text-decoration: none;
     font-weight: bold;
     padding: 0 2px;
+    font-size: 0.85rem;
 }
 .citation-link-inline:hover {
     text-decoration: underline;
@@ -500,4 +501,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Pure discovery research');
+console.log('DebateSpace loaded - Pure discovery research with citations');
