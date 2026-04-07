@@ -1,5 +1,5 @@
 // ============================================
-// DEBATESPACE - DISPLAY WITH GUARANTEED YOUTUBE
+// DEBATESPACE - DISPLAY WITH CITATIONS AND YOUTUBE
 // ============================================
 
 async function searchDebate() {
@@ -38,18 +38,25 @@ async function searchDebate() {
 function renderResults(data, query) {
     const container = document.getElementById('results');
     
-    const renderCitedClaims = (claims) => {
-        if (!claims || claims.length === 0) {
-            return '<div class="no-claims">🔍 No specific claims found. Try a different search term.</div>';
+    // Render citations
+    const renderCitations = (citations) => {
+        if (!citations || citations.length === 0) {
+            return '<div class="no-citations">No specific citations found. Try a different search term.</div>';
         }
         return `
-            <div class="cited-claims">
-                <div class="claims-header">📋 VERIFIED SOURCES & DATA:</div>
-                <div class="claims-list">
-                    ${claims.map(claim => `
-                        <div class="claim-item">
-                            <span class="claim-text">${claim.claim}</span>
-                            <a href="${claim.url}" target="_blank" rel="noopener noreferrer" class="claim-source">🔗 ${claim.source}</a>
+            <div class="citations-section">
+                <div class="section-header">
+                    <span class="section-icon">📋</span>
+                    <span>VERIFIED SOURCES & CITATIONS</span>
+                </div>
+                <div class="citations-list">
+                    ${citations.map(citation => `
+                        <div class="citation-item">
+                            <div class="citation-text">${citation.text}</div>
+                            <div class="citation-source">
+                                <span class="source-label">${citation.source}</span>
+                                <a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="citation-link">🔗 View Source</a>
+                            </div>
                         </div>
                     `).join('')}
                 </div>
@@ -57,21 +64,23 @@ function renderResults(data, query) {
         `;
     };
     
-    const renderKeyDataPoints = (points) => {
-        if (!points || points.length === 0) return '';
+    // Render key findings
+    const renderKeyFindings = (findings) => {
+        if (!findings || findings.length === 0) return '';
         return `
-            <div class="key-data-section">
+            <div class="key-findings-section">
                 <div class="section-header">
                     <span class="section-icon">📊</span>
-                    <span>KEY DATA POINTS</span>
+                    <span>KEY FINDINGS</span>
                 </div>
-                <div class="key-data-list">
-                    ${points.map(point => `<div class="key-data-item">📌 ${point}</div>`).join('')}
+                <div class="key-findings-list">
+                    ${findings.map(finding => `<div class="key-finding">📌 ${finding}</div>`).join('')}
                 </div>
             </div>
         `;
     };
     
+    // Render YouTube
     const renderYouTube = (videos) => {
         if (!videos || videos.length === 0) {
             return `
@@ -80,7 +89,7 @@ function renderResults(data, query) {
                         <span class="section-icon">📺</span>
                         <span>VIDEO EXPLANATIONS</span>
                     </div>
-                    <div class="no-videos">No videos found for this topic. Try searching YouTube directly.</div>
+                    <div class="no-videos">No videos found. Try searching YouTube directly.</div>
                 </div>
             `;
         }
@@ -96,10 +105,9 @@ function renderResults(data, query) {
                         <div class="video-card" onclick="window.open('${v.url}', '_blank')">
                             ${v.thumbnail ? `<img src="${v.thumbnail}" alt="${v.title}">` : '<div class="video-placeholder">🎬</div>'}
                             <div class="video-info">
-                                <div class="video-title">${v.title}</div>
+                                <div class="video-title">${v.title.length > 60 ? v.title.substring(0,60)+'...' : v.title}</div>
                                 <div class="video-channel">${v.channel}</div>
-                                ${v.views && v.views !== 'N/A' ? `<div class="video-views">👁️ ${v.views} views</div>` : ''}
-                                ${v.isSearchLink ? '<div class="video-search-badge">🔍 Click to search YouTube</div>' : ''}
+                                ${v.type === 'search_link' ? '<div class="video-search-badge">🔍 Click to search YouTube</div>' : ''}
                             </div>
                         </div>
                     `).join('')}
@@ -109,25 +117,23 @@ function renderResults(data, query) {
     };
     
     let html = `
-        <div class="fact-card">
-            <div class="fact-header">
-                <span class="fact-icon">✅</span>
-                <span>COMPREHENSIVE RESEARCH</span>
+        <div class="research-card">
+            <div class="research-header">
+                <span class="research-icon">✅</span>
+                <span>DEEP RESEARCH FINDINGS</span>
             </div>
-            <div class="fact-verdict">${data.factCheck?.verdict || '🔍 RESEARCH FINDINGS'}</div>
-            <div class="fact-summary">${data.factCheck?.summary || 'No information available'}</div>
-            ${data.factCheck?.detailedAnalysis ? `<div class="detailed-analysis"><strong>📋 DETAILED ANALYSIS:</strong><br>${data.factCheck.detailedAnalysis}</div>` : ''}
-            ${renderKeyDataPoints(data.factCheck?.keyDataPoints)}
-            ${renderCitedClaims(data.factCheck?.citedClaims)}
-            ${data.factCheck?.tip ? `<div class="fact-tip">💡 ${data.factCheck.tip}</div>` : ''}
+            <div class="research-summary">${data.research?.summary || 'No summary available'}</div>
+            ${data.research?.detailedAnalysis ? `<div class="research-detailed"><strong>📋 DETAILED ANALYSIS:</strong><br>${data.research.detailedAnalysis}</div>` : ''}
+            ${renderKeyFindings(data.research?.keyFindings)}
+            ${renderCitations(data.research?.citations)}
+            <div class="research-tip">💡 Government sources are prioritized. Click any source to verify.</div>
         </div>
         ${renderYouTube(data.youtube)}
         <div class="stats-footer">
             <span>🔍 "${query}"</span>
-            <span>🏛️ ${data.factCheck?.sourceBreakdown?.government || 0} Government Sources</span>
-            <span>🎓 ${data.factCheck?.sourceBreakdown?.academic || 0} Academic Sources</span>
-            <span>📰 ${data.factCheck?.sourceBreakdown?.news || 0} News Sources</span>
-            <span>📋 ${data.factCheck?.sourceBreakdown?.total || 0} Total Sources</span>
+            <span>🏛️ ${data.research?.sourceCounts?.government || 0} Government Sources</span>
+            <span>📰 ${data.research?.sourceCounts?.news || 0} News Sources</span>
+            <span>📋 ${data.research?.citations?.length || 0} Total Citations</span>
             <span>📺 ${data.youtube?.length || 0} Videos</span>
         </div>
     `;
@@ -140,11 +146,35 @@ function setSearch(topic) {
     searchDebate();
 }
 
-// Styles (abbreviated for space - same as before with additional styles)
+// Styles
 const styles = `
 <style>
-/* ... (same base styles as before) ... */
-.detailed-analysis {
+.research-card {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.05));
+    border: 2px solid rgba(16, 185, 129, 0.3);
+    border-radius: 24px;
+    padding: 28px;
+    margin-bottom: 28px;
+}
+.research-header {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #10b981;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(16, 185, 129, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.research-icon { font-size: 1.3rem; }
+.research-summary {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #e4e4e7;
+    margin-bottom: 20px;
+}
+.research-detailed {
     background: rgba(0,0,0,0.2);
     border-radius: 12px;
     padding: 16px;
@@ -152,26 +182,158 @@ const styles = `
     font-size: 0.9rem;
     line-height: 1.5;
 }
-.key-data-section {
-    background: rgba(16, 185, 129, 0.08);
-    border-radius: 12px;
-    padding: 16px;
-    margin: 16px 0;
+.research-tip {
+    font-size: 0.8rem;
+    color: #a1a1aa;
+    margin-top: 16px;
+    padding: 10px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 10px;
 }
-.key-data-list {
+.section-header {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.section-icon { font-size: 1.1rem; }
+.citations-section, .key-findings-section, .video-section {
+    background: rgba(20, 20, 35, 0.85);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.citations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.citation-item {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    padding: 14px 16px;
+    border-left: 3px solid #10b981;
+}
+.citation-text {
+    font-size: 0.85rem;
+    color: #e4e4e7;
+    margin-bottom: 10px;
+    line-height: 1.4;
+}
+.citation-source {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.source-label {
+    font-size: 0.7rem;
+    color: #fbbf24;
+}
+.citation-link {
+    font-size: 0.7rem;
+    color: #34d399;
+    text-decoration: none;
+    padding: 4px 10px;
+    background: rgba(16,185,129,0.1);
+    border-radius: 20px;
+}
+.citation-link:hover { background: rgba(16,185,129,0.2); text-decoration: underline; }
+.key-findings-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
-.key-data-item {
+.key-finding {
     font-size: 0.85rem;
     color: #d4d4d8;
-    padding: 4px 0;
+    padding: 6px 0;
 }
+.video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+.video-card {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.video-card:hover { transform: translateY(-3px); }
+.video-card img { width: 100%; height: 140px; object-fit: cover; }
+.video-placeholder {
+    width: 100%;
+    height: 140px;
+    background: #1a1a2e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+}
+.video-info { padding: 10px; }
+.video-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #e4e4e7;
+    margin-bottom: 4px;
+}
+.video-channel { font-size: 0.65rem; color: #71717a; }
 .video-search-badge {
     font-size: 0.6rem;
     color: #60a5fa;
     margin-top: 6px;
+}
+.stats-footer {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 40px;
+    padding: 12px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    font-size: 0.7rem;
+    color: #a1a1aa;
+}
+.stats-footer span {
+    padding: 4px 10px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 30px;
+}
+.no-citations {
+    color: #71717a;
+    text-align: center;
+    padding: 20px;
+}
+.error-card {
+    text-align: center;
+    padding: 40px;
+    background: rgba(239,68,68,0.1);
+    border-radius: 24px;
+}
+.retry-btn {
+    background: #6366f1;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 50px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 16px;
+}
+@media (max-width: 768px) {
+    .research-card, .citations-section, .video-section { padding: 16px; }
+    .video-grid { grid-template-columns: 1fr; }
+    .stats-footer { gap: 10px; }
+    .citation-source { flex-direction: column; align-items: flex-start; }
 }
 </style>
 `;
@@ -190,4 +352,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Maximum depth research with guaranteed YouTube');
+console.log('DebateSpace loaded - Deep research with citations and YouTube');
