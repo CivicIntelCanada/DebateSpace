@@ -1,5 +1,6 @@
 // ============================================
-// DEBATESPACE - COMPLETE DISPLAY WITH YOUTUBE
+// DEBATESPACE - DEEP RESEARCH DISPLAY
+// Working YouTube with thumbnails
 // ============================================
 
 async function searchDebate() {
@@ -47,8 +48,8 @@ function renderResults(data, query) {
                 <div class="claims-header">📋 VERIFIED SOURCES & GOVERNMENT DATA:</div>
                 <div class="claims-list">
                     ${claims.map(claim => `
-                        <div class="claim-item ${claim.priority === 'government' ? 'gov-claim' : ''}">
-                            <span class="claim-text">${claim.claim.length > 350 ? claim.claim.substring(0, 350) + '...' : claim.claim}</span>
+                        <div class="claim-item">
+                            <span class="claim-text">${claim.claim}</span>
                             <a href="${claim.url}" target="_blank" rel="noopener noreferrer" class="claim-source">🔗 ${claim.source}</a>
                         </div>
                     `).join('')}
@@ -74,6 +75,7 @@ function renderResults(data, query) {
                             <div class="video-info">
                                 <div class="video-title">${v.title.length > 60 ? v.title.substring(0,60)+'...' : v.title}</div>
                                 <div class="video-channel">${v.channel}</div>
+                                ${v.views ? `<div class="video-views">👁️ ${v.views} views</div>` : ''}
                             </div>
                         </div>
                     `).join('')}
@@ -97,10 +99,8 @@ function renderResults(data, query) {
         <div class="stats-footer">
             <span>🔍 "${query}"</span>
             <span>🏛️ ${data.factCheck?.sourceCount?.government || 0} Government Sources</span>
-            <span>📚 ${data.factCheck?.sourceCount?.archive || 0} Archive Sources</span>
-            <span>📰 ${data.factCheck?.sourceCount?.news || 0} News Sources</span>
+            <span>📋 ${data.factCheck?.citedClaims?.length || 0} Verified Sources</span>
             <span>📺 ${data.youtube?.length || 0} Videos</span>
-            <span>📋 ${data.factCheck?.citedClaims?.length || 0} Total Sources</span>
         </div>
     `;
     
@@ -112,7 +112,7 @@ function setSearch(topic) {
     searchDebate();
 }
 
-// Styles (same as before, ensure video section is styled)
+// Styles
 const styles = `
 <style>
 .fact-card {
@@ -179,7 +179,6 @@ const styles = `
     transition: transform 0.2s;
 }
 .claim-item:hover { transform: translateX(4px); background: rgba(16, 185, 129, 0.05); }
-.gov-claim { border-left-color: #fbbf24; }
 .claim-text { display: block; font-size: 0.85rem; color: #e4e4e7; margin-bottom: 10px; line-height: 1.4; }
 .claim-source {
     display: inline-block;
@@ -242,6 +241,7 @@ const styles = `
     line-height: 1.3;
 }
 .video-channel { font-size: 0.65rem; color: #71717a; }
+.video-views { font-size: 0.6rem; color: #71717a; margin-top: 4px; }
 .no-videos {
     text-align: center;
     padding: 40px;
@@ -310,4 +310,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Maximum depth research with YouTube');
+console.log('DebateSpace loaded - Deep research with YouTube');
