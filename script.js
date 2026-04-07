@@ -1,6 +1,5 @@
 // ============================================
-// DEBATESPACE - MAXIMUM DEPTH FRONTEND
-// Every sentence has a citation
+// DEBATESPACE - EVERY SENTENCE CITED DISPLAY
 // ============================================
 
 async function searchDebate() {
@@ -16,15 +15,11 @@ async function searchDebate() {
     loading.style.display = 'block';
     resultsDiv.innerHTML = '';
     
-    // Show search depth indicator
-    updateSearchDepth('Initializing deep research...');
-    
     try {
         const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        renderDeepResults(data, query);
-        updateSearchDepth(`Complete! Found ${data.depthStats?.totalSources || 0} sources across 10+ categories`);
+        renderResults(data, query);
     } catch (error) {
         console.error('Search error:', error);
         resultsDiv.innerHTML = `
@@ -35,24 +30,12 @@ async function searchDebate() {
                 <button onclick="searchDebate()" class="retry-btn">Try Again</button>
             </div>
         `;
-        updateSearchDepth('Search failed. Please try again.');
     } finally {
         loading.style.display = 'none';
     }
 }
 
-function updateSearchDepth(message) {
-    const depthIndicator = document.getElementById('depthIndicator');
-    if (depthIndicator) {
-        depthIndicator.innerHTML = message;
-        depthIndicator.style.opacity = '1';
-        setTimeout(() => {
-            depthIndicator.style.opacity = '0.5';
-        }, 2000);
-    }
-}
-
-function renderDeepResults(data, query) {
+function renderResults(data, query) {
     const container = document.getElementById('results');
     
     // Format answer with clickable citations for each sentence
@@ -63,17 +46,12 @@ function renderDeepResults(data, query) {
         
         // If we have sentence-level citations, use them
         if (answer.sentences && answer.sentences.length > 0) {
-            for (let i = 0; i < answer.sentences.length; i++) {
-                const sentence = answer.sentences[i];
-                if (sentence.citationId) {
-                    const citation = answer.citations.find(c => c.id === sentence.citationId);
-                    if (citation) {
-                        formattedHtml += `<span class="sentence-with-citation">${sentence.text}<a href="${citation.url}" target="_blank" class="citation-superscript" title="Source: ${citation.source}">[${sentence.citationId}]</a></span> `;
-                    } else {
-                        formattedHtml += `${sentence.text} `;
-                    }
+            for (const sentence of answer.sentences) {
+                const citation = answer.citations.find(c => c.id === sentence.citationId);
+                if (citation) {
+                    formattedHtml += `<span class="sentence-with-citation">${sentence.text}<a href="${citation.url}" target="_blank" class="citation-superscript" title="Source: ${citation.source}">[${sentence.citationId}]</a></span> `;
                 } else {
-                    formattedHtml += `<span class="sentence-intro">${sentence.text}</span> `;
+                    formattedHtml += `${sentence.text} `;
                 }
             }
         } else {
@@ -98,78 +76,26 @@ function renderDeepResults(data, query) {
         if (!citations || citations.length === 0) {
             return '<div class="no-citations">No specific citations found. Try a different search term.</div>';
         }
-        
-        // Group citations by type
-        const govCitations = citations.filter(c => c.type === 'government' || c.type === 'international');
-        const legalCitations = citations.filter(c => c.type === 'legal');
-        const academicCitations = citations.filter(c => c.type === 'academic' || c.type === 'scientific');
-        const otherCitations = citations.filter(c => !govCitations.includes(c) && !legalCitations.includes(c) && !academicCitations.includes(c));
-        
-        let groupedHtml = '';
-        
-        if (govCitations.length > 0) {
-            groupedHtml += `
-                <div class="citation-group">
-                    <div class="citation-group-header">🏛️ GOVERNMENT & OFFICIAL SOURCES (${govCitations.length})</div>
-                    ${renderCitationList(govCitations)}
-                </div>
-            `;
-        }
-        
-        if (legalCitations.length > 0) {
-            groupedHtml += `
-                <div class="citation-group">
-                    <div class="citation-group-header">⚖️ LEGAL & COURT SOURCES (${legalCitations.length})</div>
-                    ${renderCitationList(legalCitations)}
-                </div>
-            `;
-        }
-        
-        if (academicCitations.length > 0) {
-            groupedHtml += `
-                <div class="citation-group">
-                    <div class="citation-group-header">🎓 ACADEMIC & SCIENTIFIC SOURCES (${academicCitations.length})</div>
-                    ${renderCitationList(academicCitations)}
-                </div>
-            `;
-        }
-        
-        if (otherCitations.length > 0) {
-            groupedHtml += `
-                <div class="citation-group">
-                    <div class="citation-group-header">📚 OTHER VERIFIED SOURCES (${otherCitations.length})</div>
-                    ${renderCitationList(otherCitations)}
-                </div>
-            `;
-        }
-        
         return `
             <div class="citations-section">
                 <div class="section-header">
                     <span class="section-icon">📋</span>
-                    <span>VERIFIED SOURCE CITATIONS (${citations.length})</span>
-                    <span class="citation-badge">Every claim verified</span>
+                    <span>SOURCE CITATIONS (${citations.length})</span>
                 </div>
-                ${groupedHtml}
-            </div>
-        `;
-    };
-    
-    const renderCitationList = (citations) => {
-        return `
-            <div class="citations-list">
-                ${citations.map(citation => `
-                    <div class="citation-item">
-                        <div class="citation-id">[${citation.id}]</div>
-                        <div class="citation-content">
-                            <div class="citation-text">${citation.text}</div>
-                            <div class="citation-source">
-                                <span class="source-label">${citation.source}</span>
-                                <a href="${citation.url}" target="_blank" class="citation-link">🔗 View Original Source</a>
+                <div class="citations-list">
+                    ${citations.map(citation => `
+                        <div class="citation-item">
+                            <div class="citation-id">[${citation.id}]</div>
+                            <div class="citation-content">
+                                <div class="citation-text">${citation.text}</div>
+                                <div class="citation-source">
+                                    <span class="source-label">${citation.source}</span>
+                                    <a href="${citation.url}" target="_blank" class="citation-link">🔗 View Original Source</a>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `).join('')}
+                    `).join('')}
+                </div>
             </div>
         `;
     };
@@ -180,7 +106,7 @@ function renderDeepResults(data, query) {
             <div class="news-section">
                 <div class="section-header">
                     <span class="section-icon">📰</span>
-                    <span>LATEST NEWS ARTICLES (${articles.length})</span>
+                    <span>NEWS ARTICLES (${articles.length})</span>
                 </div>
                 <div class="news-list">
                     ${articles.map(article => `
@@ -190,7 +116,7 @@ function renderDeepResults(data, query) {
                                 <span class="news-source">📌 ${article.source}</span>
                                 ${article.date ? `<span class="news-date">📅 ${article.date}</span>` : ''}
                             </div>
-                            ${article.description ? `<div class="news-description">${article.description.substring(0, 200)}...</div>` : ''}
+                            ${article.description ? `<div class="news-description">${article.description.substring(0, 150)}...</div>` : ''}
                         </div>
                     `).join('')}
                 </div>
@@ -209,9 +135,9 @@ function renderDeepResults(data, query) {
                 <div class="video-grid">
                     ${videos.map(v => `
                         <div class="video-card" onclick="window.open('${v.url}', '_blank')">
-                            ${v.thumbnail ? `<img src="${v.thumbnail}" alt="${v.title}" loading="lazy">` : '<div class="video-placeholder">🎬</div>'}
+                            ${v.thumbnail ? `<img src="${v.thumbnail}" alt="${v.title}">` : '<div class="video-placeholder">🎬</div>'}
                             <div class="video-info">
-                                <div class="video-title">${v.title.length > 60 ? v.title.substring(0, 60) + '...' : v.title}</div>
+                                <div class="video-title">${v.title}</div>
                                 <div class="video-channel">${v.channel}</div>
                             </div>
                         </div>
@@ -221,136 +147,54 @@ function renderDeepResults(data, query) {
         `;
     };
     
-    const renderSourceBreakdown = (stats) => {
-        if (!stats) return '';
-        
-        const total = stats.totalSources || 0;
-        const gov = stats.governmentSources || 0;
-        const academic = stats.academicSources || 0;
-        const legal = stats.legalSources || 0;
-        const archive = stats.archiveSources || 0;
-        
-        const govPercent = total > 0 ? Math.round((gov / total) * 100) : 0;
-        const academicPercent = total > 0 ? Math.round((academic / total) * 100) : 0;
-        const legalPercent = total > 0 ? Math.round((legal / total) * 100) : 0;
-        const archivePercent = total > 0 ? Math.round((archive / total) * 100) : 0;
-        
-        return `
-            <div class="breakdown-section">
-                <div class="section-header">
-                    <span class="section-icon">📊</span>
-                    <span>RESEARCH DEPTH BREAKDOWN</span>
-                </div>
-                <div class="breakdown-bars">
-                    <div class="breakdown-bar">
-                        <div class="breakdown-label">🏛️ Government Sources</div>
-                        <div class="bar-container">
-                            <div class="bar-fill gov-fill" style="width: ${govPercent}%"></div>
-                        </div>
-                        <div class="breakdown-count">${gov} (${govPercent}%)</div>
-                    </div>
-                    <div class="breakdown-bar">
-                        <div class="breakdown-label">🎓 Academic Sources</div>
-                        <div class="bar-container">
-                            <div class="bar-fill academic-fill" style="width: ${academicPercent}%"></div>
-                        </div>
-                        <div class="breakdown-count">${academic} (${academicPercent}%)</div>
-                    </div>
-                    <div class="breakdown-bar">
-                        <div class="breakdown-label">⚖️ Legal Sources</div>
-                        <div class="bar-container">
-                            <div class="bar-fill legal-fill" style="width: ${legalPercent}%"></div>
-                        </div>
-                        <div class="breakdown-count">${legal} (${legalPercent}%)</div>
-                    </div>
-                    <div class="breakdown-bar">
-                        <div class="breakdown-label">📜 Archive Sources</div>
-                        <div class="bar-container">
-                            <div class="bar-fill archive-fill" style="width: ${archivePercent}%"></div>
-                        </div>
-                        <div class="breakdown-count">${archive} (${archivePercent}%)</div>
-                    </div>
-                </div>
-                <div class="breakdown-total">Total Sources Analyzed: ${total}</div>
-            </div>
-        `;
-    };
-    
     const renderAllSources = (sources) => {
         if (!sources || sources.length === 0) return '';
-        
-        // Group sources by type for better display
-        const govSources = sources.filter(s => s.type === 'government' || s.type === 'international');
-        const legalSources = sources.filter(s => s.type === 'legal');
-        const academicSources = sources.filter(s => s.type === 'academic' || s.type === 'scientific');
-        const archiveSources = sources.filter(s => s.type === 'archive');
-        const thinkTankSources = sources.filter(s => s.type === 'thinktank');
-        const webSources = sources.filter(s => s.type === 'web');
-        
         return `
             <div class="allsources-section">
                 <div class="section-header">
                     <span class="section-icon">📚</span>
                     <span>ALL RESEARCH SOURCES (${sources.length})</span>
-                    <button class="collapse-btn" onclick="toggleAllSources()">▼</button>
                 </div>
-                <div id="allsources-content" class="allsources-content">
-                    ${renderSourceGroup('🏛️ Government & Official', govSources)}
-                    ${renderSourceGroup('⚖️ Legal & Court', legalSources)}
-                    ${renderSourceGroup('🎓 Academic & Scientific', academicSources)}
-                    ${renderSourceGroup('📜 Archives & Historical', archiveSources)}
-                    ${renderSourceGroup('🏢 Think Tanks & Policy', thinkTankSources)}
-                    ${renderSourceGroup('🌐 Web & Media', webSources)}
-                </div>
-            </div>
-        `;
-    };
-    
-    const renderSourceGroup = (title, sources) => {
-        if (sources.length === 0) return '';
-        return `
-            <div class="source-group">
-                <div class="source-group-title">${title} (${sources.length})</div>
                 <div class="allsources-list">
-                    ${sources.map((source, idx) => `
-                        <div class="allsource-item">
-                            <span class="allsource-num">${idx + 1}.</span>
-                            <a href="${source.url}" target="_blank" class="allsource-link">${source.title || source.text?.substring(0, 80)}</a>
-                            <span class="allsource-domain">${source.source}</span>
-                            ${source.date ? `<span class="allsource-date">📅 ${source.date}</span>` : ''}
-                        </div>
-                    `).join('')}
+                    ${sources.map((source, idx) => {
+                        let typeIcon = "";
+                        if (source.type === "government") typeIcon = "🏛️";
+                        else if (source.type === "archive") typeIcon = "📜";
+                        else if (source.type === "academic") typeIcon = "🎓";
+                        else if (source.type === "legal") typeIcon = "⚖️";
+                        else if (source.type === "web") typeIcon = "🌐";
+                        else typeIcon = "📄";
+                        
+                        return `
+                            <div class="allsource-item">
+                                <span class="allsource-num">${idx + 1}.</span>
+                                <span class="allsource-type">${typeIcon}</span>
+                                <a href="${source.url}" target="_blank" class="allsource-link">${source.title || source.text?.substring(0, 80)}</a>
+                                <span class="allsource-domain">${source.source}</span>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
     };
     
     let html = `
-        <!-- DEPTH INDICATOR -->
-        <div id="depthIndicator" class="depth-indicator">🔍 Maximum depth research completed</div>
-        
         <!-- IN-DEPTH ANSWER WITH CITATIONS -->
         <div class="answer-card">
             <div class="answer-header">
                 <span class="answer-icon">📌</span>
-                <span>VERIFIED ANSWER WITH CITATIONS</span>
-                <span class="verification-badge">✓ Every sentence cited</span>
+                <span>FACTUAL ANSWER WITH CITATIONS</span>
             </div>
             <div class="answer-text">
                 ${formatAnswerWithCitations(data.answer)}
             </div>
             <div class="answer-footer">
-                <div class="answer-stats">
-                    <span class="evidence-count">📊 ${data.answer?.evidenceCount || 0} verified sources</span>
-                    <span class="gov-count">🏛️ ${data.answer?.governmentCount || 0} government sources</span>
-                    <span class="legal-count">⚖️ ${data.answer?.legalCount || 0} legal sources</span>
-                    <span class="academic-count">🎓 ${data.answer?.academicCount || 0} academic sources</span>
-                </div>
+                <span class="evidence-count">📊 Based on ${data.answer?.evidenceCount || 0} government and official sources</span>
                 <span class="citation-note">💡 Numbers in brackets [1] are clickable citations that go directly to the source</span>
             </div>
         </div>
         
-        ${renderSourceBreakdown(data.depthStats)}
         ${renderCitations(data.answer?.citations)}
         ${renderNewsArticles(data.newsArticles)}
         ${renderVideos(data.videoSources)}
@@ -358,11 +202,10 @@ function renderDeepResults(data, query) {
         
         <div class="stats-footer">
             <span>🔍 "${query}"</span>
-            <span>🏛️ ${data.allSources?.filter(s => s.type === "government" || s.type === "international").length || 0} Gov</span>
+            <span>🏛️ ${data.allSources?.filter(s => s.type === "government").length || 0} Gov Sources</span>
+            <span>📜 ${data.allSources?.filter(s => s.type === "archive").length || 0} Archives</span>
+            <span>🎓 ${data.allSources?.filter(s => s.type === "academic").length || 0} Academic</span>
             <span>⚖️ ${data.allSources?.filter(s => s.type === "legal").length || 0} Legal</span>
-            <span>🎓 ${data.allSources?.filter(s => s.type === "academic" || s.type === "scientific").length || 0} Academic</span>
-            <span>📜 ${data.allSources?.filter(s => s.type === "archive").length || 0} Archive</span>
-            <span>🏢 ${data.allSources?.filter(s => s.type === "thinktank").length || 0} Think Tank</span>
             <span>📰 ${data.newsArticles?.length || 0} News</span>
             <span>📺 ${data.videoSources?.length || 0} Videos</span>
             <span>📋 ${data.answer?.citations?.length || 0} Citations</span>
@@ -372,66 +215,100 @@ function renderDeepResults(data, query) {
     container.innerHTML = html;
 }
 
-function toggleAllSources() {
-    const content = document.getElementById('allsources-content');
-    const btn = document.querySelector('.collapse-btn');
-    if (content.style.display === 'none') {
-        content.style.display = 'block';
-        btn.innerHTML = '▼';
-    } else {
-        content.style.display = 'none';
-        btn.innerHTML = '▶';
-    }
-}
-
 function setSearch(topic) {
     document.getElementById('searchInput').value = topic;
     searchDebate();
 }
 
-// Enhanced Styles
+// Styles
 const styles = `
 <style>
-/* Existing styles preserved, adding new ones */
-
-.depth-indicator {
-    background: linear-gradient(135deg, #1e3a5f, #0f172a);
-    border-radius: 40px;
-    padding: 10px 20px;
-    margin-bottom: 20px;
-    text-align: center;
-    font-size: 0.85rem;
-    color: #60a5fa;
-    border: 1px solid rgba(96, 165, 250, 0.3);
-    transition: opacity 0.5s;
+.answer-card {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.05));
+    border: 2px solid rgba(16, 185, 129, 0.3);
+    border-radius: 24px;
+    padding: 28px;
+    margin-bottom: 28px;
 }
-
-.verification-badge {
-    background: #10b981;
-    color: white;
-    font-size: 0.7rem;
-    padding: 4px 10px;
-    border-radius: 30px;
-    margin-left: auto;
-}
-
-.answer-stats {
+.answer-header {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #10b981;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(16, 185, 129, 0.3);
     display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.answer-icon { font-size: 1.3rem; }
+.answer-text {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: #e4e4e7;
+    margin-bottom: 20px;
+}
+.answer-text p {
+    margin-bottom: 12px;
+}
+.sentence-with-citation {
+    display: inline;
+}
+.citation-superscript {
+    display: inline-block;
+    color: #fbbf24;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 0.75rem;
+    margin-left: 2px;
+    padding: 0 2px;
+}
+.citation-superscript:hover {
+    text-decoration: underline;
+    color: #34d399;
+}
+.citation-inline {
+    display: inline-block;
+    color: #fbbf24;
+    text-decoration: none;
+    font-weight: bold;
+    padding: 0 2px;
+}
+.citation-inline:hover {
+    text-decoration: underline;
+    color: #34d399;
+}
+.answer-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    font-size: 0.75rem;
+    color: #a1a1aa;
 }
-
-.gov-count, .legal-count, .academic-count {
-    padding: 4px 10px;
+.evidence-count {
+    background: rgba(16,185,129,0.15);
+    padding: 4px 12px;
     border-radius: 20px;
-    font-size: 0.7rem;
 }
-
-.gov-count { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-.legal-count { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
-.academic-count { background: rgba(16, 185, 129, 0.15); color: #34d399; }
-
-.breakdown-section {
+.citation-note {
+    color: #71717a;
+}
+.section-header {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.section-icon { font-size: 1.1rem; }
+.citations-section, .news-section, .video-section, .allsources-section {
     background: rgba(20, 20, 35, 0.85);
     backdrop-filter: blur(10px);
     border-radius: 20px;
@@ -439,150 +316,207 @@ const styles = `
     margin-bottom: 24px;
     border: 1px solid rgba(255, 255, 255, 0.08);
 }
-
-.breakdown-bars {
+.citations-list {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    margin: 20px 0;
-}
-
-.breakdown-bar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.breakdown-label {
-    width: 160px;
-    font-size: 0.8rem;
-    color: #e4e4e7;
-}
-
-.bar-container {
-    flex: 1;
-    height: 28px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 14px;
-    overflow: hidden;
-}
-
-.bar-fill {
-    height: 100%;
-    border-radius: 14px;
-    transition: width 1s ease;
-}
-
-.gov-fill { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
-.academic-fill { background: linear-gradient(90deg, #10b981, #34d399); }
-.legal-fill { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
-.archive-fill { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
-
-.breakdown-count {
-    min-width: 80px;
-    font-size: 0.75rem;
-    color: #a1a1aa;
-}
-
-.breakdown-total {
-    text-align: center;
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(255,255,255,0.1);
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #10b981;
-}
-
-.citation-group {
-    margin-bottom: 24px;
-}
-
-.citation-group-header {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #e4e4e7;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-.citation-badge {
-    font-size: 0.65rem;
-    background: rgba(16, 185, 129, 0.15);
-    padding: 3px 10px;
-    border-radius: 20px;
-    margin-left: 12px;
-}
-
-.sentence-intro {
-    font-weight: 600;
-    color: #60a5fa;
-}
-
-.allsources-content {
     max-height: 600px;
     overflow-y: auto;
 }
-
-.source-group {
-    margin-bottom: 20px;
-}
-
-.source-group-title {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #fbbf24;
-    margin-bottom: 10px;
-    padding: 8px 12px;
+.citation-item {
     background: rgba(0, 0, 0, 0.3);
-    border-radius: 10px;
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    gap: 12px;
+    border-left: 3px solid #10b981;
 }
-
-.collapse-btn {
-    background: rgba(255,255,255,0.1);
-    border: none;
+.citation-id {
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: #fbbf24;
+    min-width: 40px;
+}
+.citation-content {
+    flex: 1;
+}
+.citation-text {
+    font-size: 0.85rem;
     color: #e4e4e7;
-    padding: 4px 12px;
-    border-radius: 20px;
-    cursor: pointer;
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+.citation-source {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.source-label {
     font-size: 0.7rem;
-    margin-left: auto;
+    color: #fbbf24;
 }
-
-.collapse-btn:hover {
-    background: rgba(255,255,255,0.2);
+.citation-link {
+    font-size: 0.7rem;
+    color: #34d399;
+    text-decoration: none;
+    padding: 4px 10px;
+    background: rgba(16,185,129,0.1);
+    border-radius: 20px;
 }
-
-.allsource-date {
-    font-size: 0.6rem;
+.citation-link:hover { background: rgba(16,185,129,0.2); text-decoration: underline; }
+.news-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+.news-item {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    padding: 14px 16px;
+    border-left: 3px solid #3b82f6;
+}
+.news-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #60a5fa;
+    text-decoration: none;
+    display: block;
+    margin-bottom: 6px;
+}
+.news-title:hover { text-decoration: underline; }
+.news-meta {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+.news-source, .news-date {
+    font-size: 0.65rem;
     color: #71717a;
-    margin-left: 8px;
 }
-
+.news-description {
+    font-size: 0.75rem;
+    color: #a1a1aa;
+}
+.video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+.video-card {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.video-card:hover { transform: translateY(-3px); }
+.video-card img { width: 100%; height: 140px; object-fit: cover; }
+.video-placeholder {
+    width: 100%;
+    height: 140px;
+    background: #1a1a2e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+}
+.video-info { padding: 10px; }
+.video-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #e4e4e7;
+    margin-bottom: 4px;
+}
+.video-channel { font-size: 0.65rem; color: #71717a; }
+.allsources-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+.allsource-item {
+    font-size: 0.75rem;
+    padding: 8px 0;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.allsource-num {
+    color: #71717a;
+    min-width: 30px;
+    font-size: 0.7rem;
+}
+.allsource-type {
+    font-size: 0.8rem;
+    min-width: 30px;
+}
+.allsource-link {
+    color: #60a5fa;
+    text-decoration: none;
+    flex: 1;
+    font-size: 0.8rem;
+}
+.allsource-link:hover { text-decoration: underline; }
+.allsource-domain {
+    font-size: 0.65rem;
+    color: #71717a;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.stats-footer {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 40px;
+    padding: 12px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    font-size: 0.7rem;
+    color: #a1a1aa;
+}
+.stats-footer span {
+    padding: 4px 10px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 30px;
+}
+.no-citations {
+    color: #71717a;
+    text-align: center;
+    padding: 20px;
+}
+.error-card {
+    text-align: center;
+    padding: 40px;
+    background: rgba(239,68,68,0.1);
+    border-radius: 24px;
+}
+.retry-btn {
+    background: #6366f1;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 50px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 16px;
+}
 @media (max-width: 768px) {
-    .breakdown-bar {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    
-    .breakdown-label {
-        width: auto;
-    }
-    
-    .bar-container {
-        width: 100%;
-    }
-    
-    .answer-stats {
-        flex-direction: column;
-        gap: 8px;
-    }
-    
-    .citation-group-header {
-        font-size: 0.8rem;
-    }
+    .answer-card, .citations-section, .news-section, .video-section, .allsources-section { padding: 16px; }
+    .stats-footer { gap: 10px; }
+    .citation-item { flex-direction: column; }
+    .citation-source { flex-direction: column; align-items: flex-start; }
+    .allsource-item { flex-wrap: wrap; }
+    .allsource-domain { max-width: none; white-space: normal; }
+    .answer-footer { flex-direction: column; align-items: flex-start; }
 }
 </style>
 `;
@@ -596,10 +530,9 @@ if (!document.querySelector('#debate-styles')) {
 
 window.searchDebate = searchDebate;
 window.setSearch = setSearch;
-window.toggleAllSources = toggleAllSources;
 
 document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace MAX DEPTH loaded - Researching across 10+ source categories');
+console.log('DebateSpace loaded - Every sentence cited from government sources');
