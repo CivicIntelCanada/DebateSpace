@@ -1,6 +1,5 @@
 // ============================================
 // DEBATESPACE - DEEP RESEARCH DISPLAY
-// No final answer - just thorough research with sources
 // ============================================
 
 async function searchDebate() {
@@ -48,10 +47,9 @@ function renderResults(data, query) {
                 <div class="claims-header">📋 VERIFIED SOURCES & GOVERNMENT DATA:</div>
                 <div class="claims-list">
                     ${claims.map(claim => `
-                        <div class="claim-item ${claim.isGovernment ? 'gov-claim' : ''}">
-                            <span class="claim-text">${claim.claim.length > 300 ? claim.claim.substring(0, 300) + '...' : claim.claim}</span>
+                        <div class="claim-item ${claim.priority === 'government' ? 'gov-claim' : ''}">
+                            <span class="claim-text">${claim.claim.length > 350 ? claim.claim.substring(0, 350) + '...' : claim.claim}</span>
                             <a href="${claim.url}" target="_blank" rel="noopener noreferrer" class="claim-source">🔗 ${claim.source}</a>
-                            ${claim.isGovernment ? '<span class="gov-badge">🏛️ Official Source</span>' : ''}
                         </div>
                     `).join('')}
                 </div>
@@ -97,7 +95,8 @@ function renderResults(data, query) {
         <div class="stats-footer">
             <span>🔍 "${query}"</span>
             <span>🏛️ ${data.factCheck?.sourceCount?.government || 0} Government Sources</span>
-            <span>📋 ${data.factCheck?.citedClaims?.length || 0} Verified Sources</span>
+            <span>📚 ${data.factCheck?.sourceCount?.archive || 0} Archive Sources</span>
+            <span>📋 ${data.factCheck?.sourceCount?.total || 0} Total Sources</span>
             <span>📺 ${data.youtube?.length || 0} Videos</span>
         </div>
     `;
@@ -147,6 +146,7 @@ const styles = `
     line-height: 1.6;
     color: #e4e4e7;
     margin-bottom: 20px;
+    white-space: pre-wrap;
 }
 .fact-tip {
     font-size: 0.8rem;
@@ -186,17 +186,8 @@ const styles = `
     padding: 5px 10px;
     background: rgba(16, 185, 129, 0.1);
     border-radius: 8px;
-    margin-right: 8px;
 }
 .claim-source:hover { background: rgba(16, 185, 129, 0.2); text-decoration: underline; }
-.gov-badge {
-    display: inline-block;
-    font-size: 0.6rem;
-    color: #fbbf24;
-    padding: 3px 8px;
-    background: rgba(251, 191, 36, 0.1);
-    border-radius: 12px;
-}
 .video-section {
     background: rgba(20, 20, 35, 0.85);
     backdrop-filter: blur(10px);
@@ -311,4 +302,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Deep research mode');
+console.log('DebateSpace loaded - Deepest research mode');
