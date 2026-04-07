@@ -1,6 +1,7 @@
 // ============================================
 // DEBATESPACE - PURE DISCOVERY RESEARCH
 // No hardcoded facts - discovers truth through government sources
+// Every claim has a clickable citation [1] to the source
 // ============================================
 
 export default async function handler(req, res) {
@@ -12,12 +13,14 @@ export default async function handler(req, res) {
     }
     
     console.log(`\n🔍 DISCOVERY RESEARCH: "${query}"`);
+    console.log(`⏰ Time: ${new Date().toISOString()}`);
     
     try {
-        // Get all API keys
         const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
         
-        // Search ALL 5 CX engines
+        // ========================================
+        // STEP 1: SEARCH ALL 5 CX ENGINES (Priority #1)
+        // ========================================
         const cxEngines = [
             { name: 'North America', cx: process.env.GOOGLE_SEARCH_CX_NA },
             { name: 'Asia Pacific', cx: process.env.GOOGLE_SEARCH_CX_ASIA },
@@ -28,39 +31,45 @@ export default async function handler(req, res) {
         
         let allResults = [];
         
-        // Search each CX engine
+        // Search all CX engines
         for (const engine of cxEngines) {
             if (apiKey && engine.cx) {
-                const results = await searchEngine(apiKey, engine.cx, query);
+                const results = await searchCXEngine(apiKey, engine.cx, query);
                 allResults.push(...results);
                 console.log(`${engine.name}: ${results.length} results`);
             }
         }
         
-        // Search specific government agencies
-        const agencies = [
-            'fletc.gov', 'ice.gov', 'dhs.gov', 'justice.gov',
-            'statcan.gc.ca', 'canada.ca', 'bankofcanada.ca',
-            'bls.gov', 'federalreserve.gov', 'gov.uk', 'un.org'
-        ];
+        // ========================================
+        // STEP 2: SEARCH GOVERNMENT DOMAINS (Priority #2)
+        // ========================================
+        const govDomains = ['.gov', '.gc.ca', '.gov.uk', '.mil', '.europa.eu'];
         
-        for (const agency of agencies) {
+        for (const domain of govDomains) {
             if (apiKey) {
-                const agencyResults = await searchAgency(apiKey, agency, query);
-                allResults.push(...agencyResults);
-                console.log(`${agency}: ${agencyResults.length} results`);
+                const results = await searchGovernmentDomain(apiKey, domain, query);
+                allResults.push(...results);
+                console.log(`${domain}: ${results.length} results`);
             }
         }
         
-        // Search archives
+        // ========================================
+        // STEP 3: SEARCH ARCHIVES (Historical/scrubbed data)
+        // ========================================
         const archiveResults = await searchArchives(query);
         allResults.push(...archiveResults);
+        console.log(`Archives: ${archiveResults.length} results`);
         
-        // Tavily fallback
+        // ========================================
+        // STEP 4: GENERAL WEB (Tavily - lowest priority)
+        // ========================================
         const tavilyResults = await tavilySearch(query);
         allResults.push(...tavilyResults);
+        console.log(`Tavily: ${tavilyResults.length} results`);
         
-        // Remove duplicates
+        // ========================================
+        // REMOVE DUPLICATES
+        // ========================================
         const uniqueResults = [];
         const seenUrls = new Set();
         for (const result of allResults) {
@@ -73,12 +82,15 @@ export default async function handler(req, res) {
         console.log(`\n📊 TOTAL: ${uniqueResults.length} unique sources`);
         console.log(`   Government: ${uniqueResults.filter(r => r.isGovernment).length}`);
         console.log(`   Archives: ${uniqueResults.filter(r => r.type === 'archive').length}`);
-        console.log(`   Web: ${uniqueResults.filter(r => r.type === 'web' && !r.isGovernment).length}`);
         
-        // Build answer from discovered facts
-        const answer = buildDiscoverAnswer(query, uniqueResults);
+        // ========================================
+        // BUILD ANSWER WITH CITATIONS FOR EVERY CLAIM
+        // ========================================
+        const answer = buildAnswerWithCitations(query, uniqueResults);
         
-        // Get news and videos for display
+        // ========================================
+        // GET SUPPLEMENTAL CONTENT
+        // ========================================
         const newsResults = await getNews(query);
         const videoResults = await getVideos(query);
         
@@ -88,7 +100,7 @@ export default async function handler(req, res) {
             answer: answer,
             newsArticles: newsResults,
             videoSources: videoResults,
-            allSources: uniqueResults.slice(0, 40),
+            allSources: uniqueResults.slice(0, 50),
             timestamp: new Date().toISOString()
         });
         
@@ -99,10 +111,9 @@ export default async function handler(req, res) {
             query: query,
             answer: {
                 text: `Search completed. Found sources about "${query}". Please review the sources below.`,
-                sentences: [{ text: `Search completed. Click on any source below to verify.`, citationId: null }],
+                sentences: [],
                 citations: [],
-                evidenceCount: 0,
-                governmentCount: 0
+                evidenceCount: 0
             },
             newsArticles: [],
             videoSources: [],
@@ -112,17 +123,17 @@ export default async function handler(req, res) {
 }
 
 // ============================================
-// SEARCH A SPECIFIC CX ENGINE
+// SEARCH A CX ENGINE
 // ============================================
-async function searchEngine(apiKey, cx, query) {
+async function searchCXEngine(apiKey, cx, query) {
     const results = [];
     
-    // Multiple search terms to get deeper results
-    const searchTerms = [query, `${query} official`, `${query} data`, `${query} report`, `${query} statistics`];
+    // Use multiple search terms to get deeper results
+    const searchTerms = [query, `${query} official data`, `${query} report`, `${query} statistics`];
     
     for (const term of searchTerms.slice(0, 3)) {
         try {
-            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(term)}&num=8`;
+            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(term)}&num=10`;
             const response = await fetch(url);
             
             if (response.ok) {
@@ -131,19 +142,20 @@ async function searchEngine(apiKey, cx, query) {
                     for (const item of data.items) {
                         const isGov = item.link.includes('.gov') || item.link.includes('.gc.ca') || item.link.includes('.mil');
                         results.push({
-                            type: "web",
+                            type: "cx",
                             source: new URL(item.link).hostname.replace('www.', ''),
                             title: item.title,
                             url: item.link,
                             snippet: item.snippet,
-                            isGovernment: isGov
+                            isGovernment: isGov,
+                            searchTerm: term
                         });
                     }
                 }
             }
             await new Promise(r => setTimeout(r, 100));
         } catch (error) {
-            console.error(`Search error for term: ${term}`, error.message);
+            console.error(`CX search error:`, error.message);
         }
     }
     
@@ -151,16 +163,16 @@ async function searchEngine(apiKey, cx, query) {
 }
 
 // ============================================
-// SEARCH A SPECIFIC GOVERNMENT AGENCY
+// SEARCH GOVERNMENT DOMAINS
 // ============================================
-async function searchAgency(apiKey, agency, query) {
+async function searchGovernmentDomain(apiKey, domain, query) {
     const results = [];
     const cx = process.env.GOOGLE_SEARCH_CX_NA;
     
     if (!cx) return results;
     
     try {
-        const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&siteSearch=${agency}&siteSearchFilter=i&num=6`;
+        const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&siteSearch=${domain}&siteSearchFilter=i&num=8`;
         const response = await fetch(url);
         
         if (response.ok) {
@@ -169,7 +181,7 @@ async function searchAgency(apiKey, agency, query) {
                 for (const item of data.items) {
                     results.push({
                         type: "government",
-                        source: agency,
+                        source: domain,
                         title: item.title,
                         url: item.link,
                         snippet: item.snippet,
@@ -179,14 +191,14 @@ async function searchAgency(apiKey, agency, query) {
             }
         }
     } catch (error) {
-        console.error(`Agency search ${agency} error:`, error.message);
+        console.error(`Domain search ${domain} error:`, error.message);
     }
     
     return results;
 }
 
 // ============================================
-// SEARCH ARCHIVES (Historical/scrubbed data)
+// SEARCH ARCHIVES
 // ============================================
 async function searchArchives(query) {
     const results = [];
@@ -199,7 +211,7 @@ async function searchArchives(query) {
     
     for (const archive of archives) {
         try {
-            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&siteSearch=${archive}&siteSearchFilter=i&num=4`;
+            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&siteSearch=${archive}&siteSearchFilter=i&num=5`;
             const response = await fetch(url);
             
             if (response.ok) {
@@ -332,23 +344,20 @@ async function getVideos(query) {
 }
 
 // ============================================
-// BUILD ANSWER FROM DISCOVERED SOURCES
+// BUILD ANSWER WITH CITATIONS FOR EVERY CLAIM
 // ============================================
-function buildDiscoverAnswer(query, sources) {
-    // Separate government sources (highest priority)
+function buildAnswerWithCitations(query, sources) {
+    // Prioritize government sources
     const govSources = sources.filter(s => s.isGovernment === true);
     const otherSources = sources.filter(s => !s.isGovernment);
-    
-    // Prioritize government sources
     const sortedSources = [...govSources, ...otherSources];
     
     if (sortedSources.length === 0) {
         return {
-            text: `No sources found for "${query}". Please try different keywords like "${query} statistics" or "${query} government data".`,
-            sentences: [{ text: `No sources found. Try more specific keywords.`, citationId: null }],
+            text: `No sources found for "${query}". Try different keywords like "${query} statistics" or "${query} government data".`,
+            sentences: [],
             citations: [],
-            evidenceCount: 0,
-            governmentCount: 0
+            evidenceCount: 0
         };
     }
     
@@ -356,24 +365,27 @@ function buildDiscoverAnswer(query, sources) {
     const sentences = [];
     let citationId = 1;
     
-    // Add summary sentence
+    // Add introduction
     sentences.push({
         text: `Found ${sortedSources.length} sources (${govSources.length} government sources) about "${query}":`,
         citationId: null
     });
     
-    // Extract key factual statements from each source
-    for (const source of sortedSources.slice(0, 15)) {
-        // Get the best snippet - prioritize longer, substantive content
+    // Extract factual statements from each source
+    for (const source of sortedSources.slice(0, 20)) {
         let quote = source.snippet || source.title || '';
         quote = quote.replace(/\s+/g, ' ').trim();
         
-        // Skip very short or generic quotes
-        if (quote.length > 40 && !quote.toLowerCase().includes('search') && !quote.toLowerCase().includes('loading')) {
+        // Only include substantive quotes (not search prompts or navigation text)
+        if (quote.length > 50 && 
+            !quote.toLowerCase().includes('search') && 
+            !quote.toLowerCase().includes('loading') &&
+            !quote.toLowerCase().includes('menu')) {
+            
             const typeLabel = source.isGovernment ? "🏛️ GOVERNMENT" : "📄 SOURCE";
             
             sentences.push({
-                text: `"${quote.substring(0, 350)}"`,
+                text: quote.substring(0, 350),
                 citationId: citationId
             });
             
@@ -389,37 +401,21 @@ function buildDiscoverAnswer(query, sources) {
         }
     }
     
-    // If we couldn't extract good quotes, add the source titles
-    if (sentences.length <= 1) {
-        for (const source of sortedSources.slice(0, 10)) {
-            sentences.push({
-                text: `Source: ${source.title}`,
-                citationId: citationId
-            });
-            
-            citations.push({
-                id: citationId,
-                text: source.title,
-                source: source.source,
-                url: source.url,
-                title: source.title
-            });
-            citationId++;
-        }
-    }
-    
     // Add footer note
     sentences.push({
         text: `Click any [number] to verify the original source. Each citation contains a direct quote from the source document.`,
         citationId: null
     });
     
-    // Build full text
+    // Build full text with citation markers
     let fullText = "";
-    for (const sentence of sentences) {
-        if (sentence.text) {
-            fullText += sentence.text + " ";
+    for (let i = 0; i < sentences.length; i++) {
+        const sentence = sentences[i];
+        fullText += sentence.text;
+        if (sentence.citationId) {
+            fullText += ` [${sentence.citationId}]`;
         }
+        fullText += " ";
     }
     
     return {
