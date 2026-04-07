@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>DebateSpace • Fact Check with Government Sources & News</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="main-container">
+        <div class="site-header">
+            <div class="logo-badge">⚖️</div>
+            <h1>Debate<span>Space</span></h1>
+            <p class="tagline">Fact Check • Government Sources • News Articles • Video Explanations</p>
+        </div>
+
+        <div class="search-section">
+            <div class="search-container">
+                <div class="search-icon">🔍</div>
+                <input type="text" id="searchInput" placeholder='Ask any question... e.g., "Canada immigration 2026" or "ICE agent training"'>
+                <button id="searchBtn" onclick="searchDebate()">Fact Check</button>
+            </div>
+            <div class="search-tips">
+                <span>💡 Try:</span>
+                <button class="tip-btn" onclick="setSearch('Canada immigration 2026')">Canada immigration</button>
+                <button class="tip-btn" onclick="setSearch('US inflation rate')">US inflation</button>
+                <button class="tip-btn" onclick="setSearch('ICE agent training')">ICE training</button>
+                <button class="tip-btn" onclick="setSearch('Climate change facts')">Climate facts</button>
+                <button class="tip-btn" onclick="setSearch('Mark Carney')">Mark Carney</button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>🔍 Fact checking with government sources & news...</p>
+        </div>
+
+        <div id="results" class="results-full"></div>
+
+        <div class="site-footer">
+            <p>📊 Sources: Government Websites (.gov, .gc.ca) • GNews • YouTube • Tavily AI</p>
+            <p>🎯 Click any source for direct access to the original article or document</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
