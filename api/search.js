@@ -1,6 +1,7 @@
 // ============================================
-// DEBATESPACE - MULTI-LAYER DEEP RESEARCH
-// Systematic research across ALL data sources
+// DEBATESPACE - MAXIMUM DEPTH RESEARCH
+// Systematic deep dive across ALL data sources
+// YouTube: Direct search links guaranteed to work
 // ============================================
 
 export default async function handler(req, res) {
@@ -11,44 +12,44 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'No query provided' });
     }
     
-    console.log(`\n========== STARTING DEEP RESEARCH ==========`);
+    console.log(`\n========== MAXIMUM DEPTH RESEARCH ==========`);
     console.log(`[API] Query: "${query}"`);
     console.log(`[API] Time: ${new Date().toISOString()}`);
     
     try {
-        // LAYER 1: GOVERNMENT SOURCES (Highest Priority)
-        console.log(`\n--- LAYER 1: Government Sources ---`);
-        const govSources = await searchGovernmentLayers(query);
+        // LAYER 1: GOVERNMENT SOURCES (Deepest)
+        console.log(`\n--- LAYER 1: Deep Government Search ---`);
+        const govSources = await searchDeepGovernment(query);
         
         // LAYER 2: ACADEMIC & RESEARCH
-        console.log(`\n--- LAYER 2: Academic & Research ---`);
-        const academicSources = await searchAcademicLayers(query);
+        console.log(`\n--- LAYER 2: Deep Academic Search ---`);
+        const academicSources = await searchDeepAcademic(query);
         
         // LAYER 3: NEWS & MEDIA
-        console.log(`\n--- LAYER 3: News & Media ---`);
-        const newsSources = await searchNewsLayers(query);
+        console.log(`\n--- LAYER 3: Deep News Search ---`);
+        const newsSources = await searchDeepNews(query);
         
-        // LAYER 4: GENERAL WEB
-        console.log(`\n--- LAYER 4: General Web ---`);
-        const webSources = await searchWebLayers(query);
+        // LAYER 4: GENERAL WEB (Tavily)
+        console.log(`\n--- LAYER 4: Deep Web Search ---`);
+        const webSources = await searchDeepWeb(query);
         
-        // LAYER 5: VIDEO CONTENT
+        // LAYER 5: YOUTUBE (Guaranteed to work)
         console.log(`\n--- LAYER 5: Video Content ---`);
-        const videoSources = await searchVideoLayers(query);
+        const videoSources = await searchDeepYouTube(query);
         
         // Combine ALL sources
         const allSources = [...govSources, ...academicSources, ...newsSources, ...webSources];
         
-        // Generate deep research summary
-        const researchSummary = await generateDeepResearch(query, allSources);
+        // Generate comprehensive research summary
+        const researchSummary = await generateComprehensiveSummary(query, allSources, govSources);
         
         console.log(`\n========== RESEARCH COMPLETE ==========`);
-        console.log(`Total sources: ${allSources.length}`);
-        console.log(`Government sources: ${govSources.length}`);
-        console.log(`Academic sources: ${academicSources.length}`);
-        console.log(`News sources: ${newsSources.length}`);
-        console.log(`Web sources: ${webSources.length}`);
-        console.log(`Video sources: ${videoSources.length}`);
+        console.log(`Total Sources: ${allSources.length}`);
+        console.log(`Government: ${govSources.length}`);
+        console.log(`Academic: ${academicSources.length}`);
+        console.log(`News: ${newsSources.length}`);
+        console.log(`Web: ${webSources.length}`);
+        console.log(`Videos: ${videoSources.length}`);
         
         return res.status(200).json({
             success: true,
@@ -56,23 +57,24 @@ export default async function handler(req, res) {
             factCheck: {
                 verdict: "✅ COMPREHENSIVE RESEARCH",
                 summary: researchSummary.summary,
-                keyFindings: researchSummary.keyFindings,
+                detailedAnalysis: researchSummary.detailedAnalysis,
+                keyDataPoints: researchSummary.keyDataPoints,
                 citedClaims: researchSummary.citedClaims,
-                tip: "Click any source above to verify the information",
                 sourceBreakdown: {
                     government: govSources.length,
                     academic: academicSources.length,
                     news: newsSources.length,
                     web: webSources.length,
                     total: allSources.length
-                }
+                },
+                tip: "🏛️ Government sources are prioritized. Click any source to verify."
             },
             youtube: videoSources,
             timestamp: new Date().toISOString()
         });
         
     } catch (error) {
-        console.error('[API] Fatal Error:', error);
+        console.error('[API] Error:', error);
         return res.status(200).json({
             success: true,
             query: query,
@@ -82,65 +84,77 @@ export default async function handler(req, res) {
                 citedClaims: [],
                 tip: "Try using more specific terms"
             },
-            youtube: []
+            youtube: getYouTubeGuaranteed(query)
         });
     }
 }
 
 // ============================================
-// LAYER 1: GOVERNMENT SOURCES
+// LAYER 1: DEEP GOVERNMENT SEARCH
 // ============================================
-async function searchGovernmentLayers(query) {
+async function searchDeepGovernment(query) {
     const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
     const sources = [];
     const seenUrls = new Set();
     
-    // Specific government agencies to search
+    // Comprehensive list of government agencies
     const agencies = [
-        // Canada
-        { name: "Statistics Canada", domain: "statcan.gc.ca", url: "https://www.statcan.gc.ca" },
-        { name: "Bank of Canada", domain: "bankofcanada.ca", url: "https://www.bankofcanada.ca" },
-        { name: "Government of Canada", domain: "canada.ca", url: "https://www.canada.ca" },
-        { name: "IRCC", domain: "canada.ca/en/immigration-refugees-citizenship", url: "https://www.canada.ca/en/immigration-refugees-citizenship.html" },
-        // USA
-        { name: "ICE", domain: "ice.gov", url: "https://www.ice.gov" },
-        { name: "FLETC", domain: "fletc.gov", url: "https://www.fletc.gov" },
-        { name: "DHS", domain: "dhs.gov", url: "https://www.dhs.gov" },
-        { name: "BLS", domain: "bls.gov", url: "https://www.bls.gov" },
-        { name: "Federal Reserve", domain: "federalreserve.gov", url: "https://www.federalreserve.gov" },
-        { name: "CDC", domain: "cdc.gov", url: "https://www.cdc.gov" },
-        { name: "NIH", domain: "nih.gov", url: "https://www.nih.gov" },
-        { name: "NASA", domain: "nasa.gov", url: "https://www.nasa.gov" },
+        // Canada - Complete
+        { name: "Statistics Canada", domain: "statcan.gc.ca", searchTerms: ["data", "statistics", "report"] },
+        { name: "Bank of Canada", domain: "bankofcanada.ca", searchTerms: ["policy", "rate", "inflation"] },
+        { name: "Government of Canada", domain: "canada.ca", searchTerms: ["official", "policy", "program"] },
+        { name: "IRCC", domain: "canada.ca/en/immigration-refugees-citizenship", searchTerms: ["immigration", "visa", "permit"] },
+        { name: "RCMP", domain: "rcmp-grc.gc.ca", searchTerms: ["enforcement", "security"] },
+        { name: "Health Canada", domain: "hc-sc.gc.ca", searchTerms: ["health", "safety"] },
+        { name: "Environment Canada", domain: "canada.ca/en/environment-climate-change", searchTerms: ["climate", "environment"] },
+        // USA - Complete
+        { name: "ICE", domain: "ice.gov", searchTerms: ["enforcement", "removal", "detention"] },
+        { name: "FLETC", domain: "fletc.gov", searchTerms: ["training", "academy", "program"] },
+        { name: "DHS", domain: "dhs.gov", searchTerms: ["security", "homeland", "protection"] },
+        { name: "BLS", domain: "bls.gov", searchTerms: ["employment", "inflation", "wages"] },
+        { name: "Federal Reserve", domain: "federalreserve.gov", searchTerms: ["monetary", "interest", "policy"] },
+        { name: "CDC", domain: "cdc.gov", searchTerms: ["disease", "health", "outbreak"] },
+        { name: "NIH", domain: "nih.gov", searchTerms: ["research", "medical", "study"] },
+        { name: "NASA", domain: "nasa.gov", searchTerms: ["space", "science", "research"] },
+        { name: "DOJ", domain: "justice.gov", searchTerms: ["law", "justice", "enforcement"] },
+        { name: "State Department", domain: "state.gov", searchTerms: ["foreign", "policy", "international"] },
+        { name: "Treasury", domain: "treasury.gov", searchTerms: ["economy", "finance", "tax"] },
         // UK
-        { name: "GOV.UK", domain: "gov.uk", url: "https://www.gov.uk" },
-        { name: "UK Parliament", domain: "parliament.uk", url: "https://www.parliament.uk" },
+        { name: "GOV.UK", domain: "gov.uk", searchTerms: ["official", "policy", "service"] },
+        { name: "UK Parliament", domain: "parliament.uk", searchTerms: ["legislation", "debate", "bill"] },
+        { name: "Bank of England", domain: "bankofengland.co.uk", searchTerms: ["rate", "monetary", "policy"] },
         // International
-        { name: "United Nations", domain: "un.org", url: "https://www.un.org" },
-        { name: "World Bank", domain: "worldbank.org", url: "https://www.worldbank.org" },
-        { name: "IMF", domain: "imf.org", url: "https://www.imf.org" },
-        { name: "WHO", domain: "who.int", url: "https://www.who.int" },
-        { name: "OECD", domain: "oecd.org", url: "https://www.oecd.org" }
+        { name: "United Nations", domain: "un.org", searchTerms: ["global", "development", "peace"] },
+        { name: "World Bank", domain: "worldbank.org", searchTerms: ["development", "economy", "data"] },
+        { name: "IMF", domain: "imf.org", searchTerms: ["economic", "financial", "outlook"] },
+        { name: "WHO", domain: "who.int", searchTerms: ["health", "global", "disease"] },
+        { name: "OECD", domain: "oecd.org", searchTerms: ["economic", "policy", "data"] },
+        { name: "NATO", domain: "nato.int", searchTerms: ["defense", "security", "alliance"] }
     ];
     
     for (const agency of agencies) {
         try {
-            const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA}&q=${encodeURIComponent(query)}&siteSearch=${agency.domain}&siteSearchFilter=i&num=5`;
-            const response = await fetch(searchUrl);
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.items && data.items.length > 0) {
-                    for (const item of data.items) {
-                        if (!seenUrls.has(item.link)) {
-                            seenUrls.add(item.link);
-                            sources.push({
-                                name: agency.name,
-                                title: item.title,
-                                url: item.link,
-                                snippet: item.snippet,
-                                type: "government",
-                                layer: 1
-                            });
+            // Search multiple times with different terms
+            for (const term of agency.searchTerms.slice(0, 2)) {
+                const searchQuery = `${query} ${term}`;
+                const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA}&q=${encodeURIComponent(searchQuery)}&siteSearch=${agency.domain}&siteSearchFilter=i&num=5`;
+                const response = await fetch(searchUrl);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.items && data.items.length > 0) {
+                        for (const item of data.items) {
+                            if (!seenUrls.has(item.link)) {
+                                seenUrls.add(item.link);
+                                sources.push({
+                                    name: agency.name,
+                                    title: item.title,
+                                    url: item.link,
+                                    snippet: item.snippet,
+                                    type: "government",
+                                    layer: 1
+                                });
+                            }
                         }
                     }
                 }
@@ -154,14 +168,18 @@ async function searchGovernmentLayers(query) {
 }
 
 // ============================================
-// LAYER 2: ACADEMIC & RESEARCH SOURCES
+// LAYER 2: DEEP ACADEMIC SEARCH
 // ============================================
-async function searchAcademicLayers(query) {
+async function searchDeepAcademic(query) {
     const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
     const sources = [];
     const seenUrls = new Set();
     
-    const academicDomains = ['.edu', '.ac.uk', '.edu.au', 'scholar.google.com', 'researchgate.net', 'academia.edu'];
+    const academicDomains = [
+        '.edu', '.ac.uk', '.edu.au', '.ac.nz', '.ac.jp',
+        'scholar.google.com', 'researchgate.net', 'academia.edu',
+        'jstor.org', 'springer.com', 'sciencedirect.com', 'wiley.com'
+    ];
     
     for (const domain of academicDomains) {
         try {
@@ -192,7 +210,7 @@ async function searchAcademicLayers(query) {
                 }
             }
         } catch (error) {
-            console.error(`[Academic ${domain}] Error:`, error.message);
+            console.error(`[Academic] Error:`, error.message);
         }
     }
     
@@ -200,16 +218,16 @@ async function searchAcademicLayers(query) {
 }
 
 // ============================================
-// LAYER 3: NEWS & MEDIA SOURCES
+// LAYER 3: DEEP NEWS SEARCH
 // ============================================
-async function searchNewsLayers(query) {
+async function searchDeepNews(query) {
     const apiKey = process.env.GNEWS_API_KEY;
     const sources = [];
     
     if (!apiKey) return sources;
     
     try {
-        const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=15&token=${apiKey}`;
+        const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=20&token=${apiKey}`;
         const response = await fetch(url);
         
         if (response.ok) {
@@ -241,9 +259,9 @@ async function searchNewsLayers(query) {
 }
 
 // ============================================
-// LAYER 4: GENERAL WEB SOURCES
+// LAYER 4: DEEP WEB SEARCH
 // ============================================
-async function searchWebLayers(query) {
+async function searchDeepWeb(query) {
     const apiKey = process.env.TAVILY_API_KEY;
     const sources = [];
     
@@ -258,7 +276,7 @@ async function searchWebLayers(query) {
                 query: query,
                 search_depth: 'advanced',
                 include_answer: true,
-                max_results: 20
+                max_results: 25
             })
         });
         
@@ -275,7 +293,7 @@ async function searchWebLayers(query) {
                     name: siteName,
                     title: result.title,
                     url: result.url,
-                    snippet: result.content?.substring(0, 500),
+                    snippet: result.content?.substring(0, 600),
                     type: "web",
                     layer: 4
                 });
@@ -291,101 +309,119 @@ async function searchWebLayers(query) {
 }
 
 // ============================================
-// LAYER 5: VIDEO SOURCES
+// LAYER 5: DEEP YOUTUBE SEARCH - GUARANTEED TO WORK
 // ============================================
-async function searchVideoLayers(query) {
-    const apiKey = process.env.YOUTUBE_API_KEY;
-    const videos = [];
-    
-    if (!apiKey) {
-        return getVideoFallback(query);
-    }
-    
-    try {
-        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=6&key=${apiKey}`;
-        const response = await fetch(searchUrl);
-        
-        if (response.ok) {
-            const data = await response.json();
-            if (data.items && data.items.length > 0) {
-                // Get view counts
-                const videoIds = data.items.map(item => item.id.videoId).join(',');
-                const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}&key=${apiKey}`;
-                const statsResponse = await fetch(statsUrl);
-                let statsMap = {};
-                
-                if (statsResponse.ok) {
-                    const statsData = await statsResponse.json();
-                    if (statsData.items) {
-                        statsMap = statsData.items.reduce((map, item) => {
-                            map[item.id] = { views: parseInt(item.statistics?.viewCount || 0).toLocaleString() };
-                            return map;
-                        }, {});
-                    }
-                }
-                
-                for (const item of data.items) {
-                    videos.push({
-                        title: item.snippet.title,
-                        url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
-                        channel: item.snippet.channelTitle,
-                        thumbnail: item.snippet.thumbnails?.medium?.url || '',
-                        views: statsMap[item.id.videoId]?.views || 'N/A'
-                    });
-                }
-            }
-        }
-        
-        if (videos.length === 0) {
-            return getVideoFallback(query);
-        }
-        
-        return videos;
-        
-    } catch (error) {
-        console.error('[YouTube] Error:', error.message);
-        return getVideoFallback(query);
-    }
+async function searchDeepYouTube(query) {
+    // Return guaranteed working YouTube search links
+    // These are direct search URLs that ALWAYS work
+    return getYouTubeGuaranteed(query);
 }
 
-function getVideoFallback(query) {
+function getYouTubeGuaranteed(query) {
     const encoded = encodeURIComponent(query);
+    const encodedExplained = encodeURIComponent(`${query} explained`);
+    const encodedDocumentary = encodeURIComponent(`${query} documentary`);
+    const encodedAnalysis = encodeURIComponent(`${query} analysis`);
+    const encodedNews = encodeURIComponent(`${query} news`);
+    
     return [
-        { title: `YouTube search: "${query}"`, url: `https://www.youtube.com/results?search_query=${encoded}`, channel: "YouTube Search", thumbnail: "", views: "Click to search" },
-        { title: `${query} - documentary`, url: `https://www.youtube.com/results?search_query=${encoded}+documentary`, channel: "YouTube Search", thumbnail: "", views: "Click to search" },
-        { title: `${query} - explained`, url: `https://www.youtube.com/results?search_query=${encoded}+explained`, channel: "YouTube Search", thumbnail: "", views: "Click to search" }
+        {
+            title: `🔍 YouTube Search Results for "${query}"`,
+            url: `https://www.youtube.com/results?search_query=${encoded}`,
+            channel: "YouTube",
+            thumbnail: "",
+            views: "Click to search",
+            isSearchLink: true
+        },
+        {
+            title: `📚 "${query}" - Explained Videos`,
+            url: `https://www.youtube.com/results?search_query=${encodedExplained}`,
+            channel: "YouTube",
+            thumbnail: "",
+            views: "Click to search",
+            isSearchLink: true
+        },
+        {
+            title: `🎥 "${query}" - Documentaries & Full Length`,
+            url: `https://www.youtube.com/results?search_query=${encodedDocumentary}`,
+            channel: "YouTube",
+            thumbnail: "",
+            views: "Click to search",
+            isSearchLink: true
+        },
+        {
+            title: `📊 "${query}" - Expert Analysis`,
+            url: `https://www.youtube.com/results?search_query=${encodedAnalysis}`,
+            channel: "YouTube",
+            thumbnail: "",
+            views: "Click to search",
+            isSearchLink: true
+        },
+        {
+            title: `📰 "${query}" - News Coverage`,
+            url: `https://www.youtube.com/results?search_query=${encodedNews}`,
+            channel: "YouTube",
+            thumbnail: "",
+            views: "Click to search",
+            isSearchLink: true
+        },
+        {
+            title: `🎓 "${query}" - Educational Content`,
+            url: `https://www.youtube.com/results?search_query=${encoded}+educational`,
+            channel: "YouTube",
+            thumbnail: "",
+            views: "Click to search",
+            isSearchLink: true
+        }
     ];
 }
 
 // ============================================
-// GENERATE DEEP RESEARCH SUMMARY
+// GENERATE COMPREHENSIVE SUMMARY
 // ============================================
-async function generateDeepResearch(query, allSources) {
+async function generateComprehensiveSummary(query, allSources, govSources) {
     const groqKey = process.env.GROQ_API_KEY;
     const citedClaims = [];
+    const keyDataPoints = [];
     let summary = "";
-    let keyFindings = [];
+    let detailedAnalysis = "";
     
-    // Build cited claims from all sources
-    for (const source of allSources.slice(0, 25)) {
+    // Build cited claims from all sources (prioritize government)
+    const sortedSources = [...govSources, ...allSources.filter(s => !s.type === 'government')];
+    
+    for (const source of sortedSources.slice(0, 30)) {
         if (source.url && source.snippet) {
             let prefix = "";
-            if (source.type === "government") prefix = "🏛️ ";
-            if (source.type === "academic") prefix = "🎓 ";
-            if (source.type === "news") prefix = "📰 ";
+            if (source.type === "government") prefix = "🏛️ GOVERNMENT: ";
+            if (source.type === "academic") prefix = "🎓 ACADEMIC: ";
+            if (source.type === "news") prefix = "📰 NEWS: ";
+            if (source.type === "web") prefix = "🌐 SOURCE: ";
             
             citedClaims.push({
-                claim: source.snippet.length > 400 ? source.snippet.substring(0, 400) + '...' : source.snippet,
+                claim: source.snippet.length > 450 ? source.snippet.substring(0, 450) + '...' : source.snippet,
                 source: `${prefix}${source.name}`,
                 url: source.url
             });
         }
     }
     
-    // Use Groq to synthesize findings if available
+    // Extract key data points from government sources
+    for (const source of govSources.slice(0, 10)) {
+        if (source.snippet) {
+            // Extract sentences with numbers/dates
+            const sentences = source.snippet.split(/[.!?]+/);
+            for (const sentence of sentences) {
+                if (sentence.match(/\d+/) && sentence.length > 30 && sentence.length < 200) {
+                    keyDataPoints.push(sentence.trim() + '.');
+                }
+            }
+        }
+    }
+    
+    // Use Groq to synthesize comprehensive findings
     if (groqKey && allSources.length > 0) {
         try {
-            const sourcesText = allSources.slice(0, 15).map(s => s.snippet).join('\n\n');
+            const sourcesText = allSources.slice(0, 20).map(s => `[${s.type.toUpperCase()}] ${s.snippet}`).join('\n\n');
             const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -397,34 +433,52 @@ async function generateDeepResearch(query, allSources) {
                     messages: [
                         {
                             role: 'system',
-                            content: `You are a research synthesizer. Based on the provided source snippets, create a comprehensive summary of the key findings. Include specific data points, statistics, and conclusions. Be factual and neutral.`
+                            content: `You are a senior research analyst. Based on the provided sources, create:
+1. A comprehensive summary (200-300 words)
+2. A detailed analysis with specific data points (300-400 words)
+
+Be factual, use specific numbers and dates, and cite sources.`
                         },
                         {
                             role: 'user',
-                            content: `Query: ${query}\n\nSource Snippets:\n${sourcesText}`
+                            content: `Query: ${query}\n\nNumber of sources: ${allSources.length}\n\nSource Content:\n${sourcesText}`
                         }
                     ],
                     temperature: 0.1,
-                    max_tokens: 800
+                    max_tokens: 1200
                 })
             });
             
             if (response.ok) {
                 const data = await response.json();
-                summary = data.choices?.[0]?.message?.content || `Research findings for "${query}".`;
+                const content = data.choices?.[0]?.message?.content || "";
+                
+                // Split into summary and detailed analysis
+                const parts = content.split(/\d+\.\s+/);
+                if (parts.length >= 2) {
+                    summary = parts[0] || `Research findings for "${query}".`;
+                    detailedAnalysis = parts.slice(1).join('\n') || content;
+                } else {
+                    summary = content;
+                    detailedAnalysis = content;
+                }
             } else {
                 summary = `Research findings for "${query}" based on ${allSources.length} sources.`;
+                detailedAnalysis = `Based on ${govSources.length} government sources, ${academicSources.length} academic sources, and ${allSources.length - govSources.length - academicSources.length} additional sources.`;
             }
         } catch (error) {
-            summary = `Research findings for "${query}" based on ${allSources.length} sources.`;
+            summary = `Research findings for "${query}" based on ${allSources.length} authoritative sources.`;
+            detailedAnalysis = `Review the ${allSources.length} sources below for detailed information.`;
         }
     } else {
         summary = `Research findings for "${query}" based on ${allSources.length} authoritative sources.`;
+        detailedAnalysis = `This research includes ${govSources.length} government sources. Review the sources below for detailed information.`;
     }
     
     return {
         summary: summary,
-        keyFindings: keyFindings,
+        detailedAnalysis: detailedAnalysis,
+        keyDataPoints: keyDataPoints.slice(0, 10),
         citedClaims: citedClaims
     };
 }
