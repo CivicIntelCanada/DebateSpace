@@ -1,6 +1,6 @@
 // ============================================
 // DEBATESPACE - GOVERNMENT-FIRST DEEP RESEARCH
-// Prioritizes .gov, official archives, scrubbed data
+// UPDATED: Proper FINAL ANSWER from AI/Groq
 // ============================================
 
 export default async function handler(req, res) {
@@ -59,7 +59,6 @@ export default async function handler(req, res) {
 async function fetchAllGovernmentSources(query) {
     const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
     
-    // Expanded search engines with government priority
     const searchEngines = [
         { name: 'North America', cx: process.env.GOOGLE_SEARCH_CX_NA, priority: 1 },
         { name: 'Europe', cx: process.env.GOOGLE_SEARCH_CX_EU, priority: 2 },
@@ -74,7 +73,6 @@ async function fetchAllGovernmentSources(query) {
         if (!apiKey || !engine.cx) continue;
         
         try {
-            // Get more results per engine (num=10)
             const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${engine.cx}&q=${encodeURIComponent(query)}&num=10`;
             const response = await fetch(url);
             
@@ -88,12 +86,10 @@ async function fetchAllGovernmentSources(query) {
                         try {
                             const urlObj = new URL(item.link);
                             siteName = urlObj.hostname.replace('www.', '');
-                            // Mark government sources
                             if (siteName.includes('.gov') || siteName.includes('.gc.ca') || 
                                 siteName.includes('.mil') || siteName.includes('.edu')) {
                                 isGovernment = true;
                             }
-                            // Mark archive sources
                             if (siteName.includes('archive') || siteName.includes('census') || 
                                 siteName.includes('stat') || siteName.includes('data')) {
                                 isArchive = true;
@@ -120,7 +116,6 @@ async function fetchAllGovernmentSources(query) {
         }
     }
     
-    // Remove duplicates by URL
     const uniqueResults = [];
     const seenUrls = new Set();
     for (const result of allResults) {
@@ -130,7 +125,6 @@ async function fetchAllGovernmentSources(query) {
         }
     }
     
-    // Sort: Government sources first, then archives, then by priority
     uniqueResults.sort((a, b) => {
         if (a.isGovernment && !b.isGovernment) return -1;
         if (!a.isGovernment && b.isGovernment) return 1;
@@ -204,7 +198,7 @@ async function fetchTavilyDeep(query) {
 }
 
 // ============================================
-// GROQ DEEP ANALYSIS
+// GROQ DEEP ANALYSIS - Used for FINAL ANSWER
 // ============================================
 async function fetchGroqDeep(query) {
     const apiKey = process.env.GROQ_API_KEY;
@@ -276,7 +270,7 @@ async function fetchYouTube(query) {
 }
 
 // ============================================
-// BUILD DEEP FACT CHECK WITH FINAL ANSWER
+// BUILD DEEP FACT CHECK WITH PROPER FINAL ANSWER
 // ============================================
 function buildDeepFactCheckWithFinalAnswer(query, tavilyResult, groqResult, govSources) {
     const q = query.toLowerCase();
@@ -284,11 +278,9 @@ function buildDeepFactCheckWithFinalAnswer(query, tavilyResult, groqResult, govS
     // Create cited claims from government sources FIRST
     const citedClaims = [];
     
-    // Add government sources as claims (these are the most authoritative)
     for (const source of govSources.slice(0, 15)) {
         if (source.url && source.name) {
             let claimText = source.snippet || source.title;
-            // Add indicator for government sources
             const sourceIndicator = source.isGovernment ? '🏛️ ' : '';
             citedClaims.push({
                 claim: claimText,
@@ -313,7 +305,7 @@ function buildDeepFactCheckWithFinalAnswer(query, tavilyResult, groqResult, govS
         }
     }
     
-    // Build the summary - prefer Groq analysis for depth, then Tavily
+    // Build the summary - prefer Groq analysis for depth
     let summary = "";
     if (groqResult?.analysis) {
         summary = groqResult.analysis;
@@ -325,21 +317,54 @@ function buildDeepFactCheckWithFinalAnswer(query, tavilyResult, groqResult, govS
         summary = `Deep research results for "${query}" from government and official sources.`;
     }
     
-    // Generate FINAL ANSWER conclusion
+    // ============================================
+    // IMPROVED FINAL ANSWER - Uses Groq AI to summarize
+    // ============================================
     let finalAnswer = "";
-    if (govSources.length > 0) {
-        // Extract a conclusive statement from top government source
+    
+    // Priority 1: Use Groq analysis to generate a conclusion
+    if (groqResult?.analysis) {
+        // Extract the most relevant concluding sentences
+        const analysis = groqResult.analysis;
+        // Get the last 2-3 sentences as conclusion
+        const sentences = analysis.match(/[^.!?]+[.!?]+/g) || [];
+        if (sentences.length >= 2) {
+            finalAnswer = sentences.slice(-2).join(" ").trim();
+        } else if (sentences.length === 1) {
+            finalAnswer = sentences[0].trim();
+        } else {
+            finalAnswer = analysis.substring(0, 300);
+        }
+    } 
+    // Priority 2: Use Tavily answer
+    else if (tavilyResult?.answer) {
+        const sentences = tavilyResult.answer.match(/[^.!?]+[.!?]+/g) || [];
+        if (sentences.length >= 2) {
+            finalAnswer = sentences.slice(-2).join(" ").trim();
+        } else {
+            finalAnswer = tavilyResult.answer.substring(0, 300);
+        }
+    }
+    // Priority 3: Use government source snippets
+    else if (govSources.length > 0) {
         const topGov = govSources[0];
-        finalAnswer = `Based on official government data from ${topGov.name}, ${topGov.snippet ? topGov.snippet.substring(0, 200) : 'information is available at the source link above.'}`;
-    } else if (groqResult?.analysis) {
-        // Extract last sentence from Groq analysis as conclusion
-        const sentences = groqResult.analysis.split(/[.!?]+/);
-        const lastSentence = sentences[sentences.length - 2] || sentences[0];
-        finalAnswer = lastSentence ? lastSentence.trim() + "." : "Please review the sources above for accurate information.";
-    } else if (tavilyResult?.answer) {
-        finalAnswer = tavilyResult.answer.split(/[.!?]+/).slice(-2).join(". ") + ".";
-    } else {
+        finalAnswer = `Based on official data from ${topGov.name}, ${topGov.snippet ? topGov.snippet.substring(0, 250) : 'information is available at the source link.'}`;
+    }
+    // Priority 4: Fallback
+    else {
         finalAnswer = `For accurate information about "${query}", please review the official government sources listed above.`;
+    }
+    
+    // Clean up final answer - remove any leftover artifacts
+    finalAnswer = finalAnswer
+        .replace(/\[\d+\]/g, '')
+        .replace(/\(source:.*?\)/gi, '')
+        .replace(/\[citation\s*\d*\]/gi, '')
+        .trim();
+    
+    // Ensure final answer ends with proper punctuation
+    if (!finalAnswer.endsWith('.') && !finalAnswer.endsWith('!') && !finalAnswer.endsWith('?')) {
+        finalAnswer += '.';
     }
     
     return {
