@@ -36,7 +36,7 @@ export default async function handler(req, res) {
         console.log(`\n🌐 LAYER 5: General Web Search...`);
         const webSources = await searchGeneralWeb(query);
         
-        // LAYER 6: VIDEO CONTENT
+        // LAYER 6: VIDEO CONTENT - FIXED
         console.log(`\n📺 LAYER 6: Video Content...`);
         const videoSources = await searchVideoContent(query);
         
@@ -90,7 +90,6 @@ async function searchGovernmentArchives(query) {
     const sources = [];
     const seenUrls = new Set();
     
-    // Archive-specific domains and search terms
     const archiveDomains = [
         { domain: "archive.org", name: "Internet Archive", type: "digital archive" },
         { domain: "census.gov", name: "US Census Bureau", type: "historical data" },
@@ -98,16 +97,13 @@ async function searchGovernmentArchives(query) {
         { domain: "statcan.gc.ca", name: "Statistics Canada", type: "historical data" },
         { domain: "data.gov", name: "US Government Data", type: "open data" },
         { domain: "federalregister.gov", name: "Federal Register", type: "official records" },
-        { domain: "govinfo.gov", name: "GovInfo", type: "government documents" },
-        { domain: "library of congress", name: "Library of Congress", type: "archives" }
+        { domain: "govinfo.gov", name: "GovInfo", type: "government documents" }
     ];
     
-    // Archive-specific search terms to dig deeper
     const archiveTerms = ['history', 'record', 'document', 'archive', 'original', 'source', 'data', 'statistics', 'report'];
     
     for (const archive of archiveDomains) {
         try {
-            // Search with archive focus
             const archiveQuery = `${query} ${archiveTerms.join(' OR ')}`;
             const searchUrl = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA}&q=${encodeURIComponent(archiveQuery)}&siteSearch=${archive.domain}&siteSearchFilter=i&num=5`;
             const response = await fetch(searchUrl);
@@ -335,40 +331,66 @@ async function searchGeneralWeb(query) {
 }
 
 // ============================================
-// LAYER 6: VIDEO CONTENT
+// LAYER 6: VIDEO CONTENT - FIXED
 // ============================================
 async function searchVideoContent(query) {
     const apiKey = process.env.YOUTUBE_API_KEY;
     const videos = [];
     
-    // Always include YouTube search links
-    videos.push(...getYouTubeSearchLinks(query));
-    
+    // Get direct video results from YouTube API first
     if (apiKey) {
         try {
-            const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=6&key=${apiKey}`;
-            const response = await fetch(url);
+            // Search for the exact query
+            const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=6&key=${apiKey}`;
+            const response = await fetch(searchUrl);
             
             if (response.ok) {
                 const data = await response.json();
                 if (data.items && data.items.length > 0) {
                     for (const item of data.items) {
+                        // Get video statistics for each video
+                        const videoId = item.id.videoId;
+                        const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoId}&key=${apiKey}`;
+                        const statsResponse = await fetch(statsUrl);
+                        let viewCount = '';
+                        
+                        if (statsResponse.ok) {
+                            const statsData = await statsResponse.json();
+                            if (statsData.items && statsData.items[0]) {
+                                viewCount = parseInt(statsData.items[0].statistics?.viewCount || 0).toLocaleString();
+                            }
+                        }
+                        
                         videos.push({
                             title: item.snippet.title,
-                            url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
+                            url: `https://www.youtube.com/watch?v=${videoId}`,
                             channel: item.snippet.channelTitle,
-                            thumbnail: item.snippet.thumbnails?.medium?.url || '',
-                            type: "video"
+                            thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || '',
+                            type: "video",
+                            views: viewCount
                         });
                     }
                 }
             }
         } catch (error) {
-            console.error('[YouTube] Error:', error.message);
+            console.error('[YouTube] API error:', error.message);
         }
     }
     
-    // Remove duplicates
+    // If we have less than 3 videos from API, add search links as fallback
+    if (videos.length < 3) {
+        const encoded = encodeURIComponent(query);
+        videos.push({
+            title: `🔍 Search YouTube: "${query}"`,
+            url: `https://www.youtube.com/results?search_query=${encoded}`,
+            channel: "YouTube",
+            thumbnail: "",
+            type: "search",
+            isSearchLink: true
+        });
+    }
+    
+    // Remove duplicates by URL
     const uniqueVideos = [];
     const seenUrls = new Set();
     for (const video of videos) {
@@ -379,16 +401,6 @@ async function searchVideoContent(query) {
     }
     
     return uniqueVideos.slice(0, 8);
-}
-
-function getYouTubeSearchLinks(query) {
-    const encoded = encodeURIComponent(query);
-    return [
-        { title: `🔍 YouTube Search: "${query}"`, url: `https://www.youtube.com/results?search_query=${encoded}`, channel: "YouTube", thumbnail: "", type: "search" },
-        { title: `📚 "${query}" - Educational`, url: `https://www.youtube.com/results?search_query=${encoded}+educational`, channel: "YouTube", thumbnail: "", type: "search" },
-        { title: `📰 "${query}" - News`, url: `https://www.youtube.com/results?search_query=${encoded}+news`, channel: "YouTube", thumbnail: "", type: "search" },
-        { title: `🎓 "${query}" - Documentary`, url: `https://www.youtube.com/results?search_query=${encoded}+documentary`, channel: "YouTube", thumbnail: "", type: "search" }
-    ];
 }
 
 function getYouTubeFallback(query) {
@@ -431,7 +443,6 @@ async function synthesizeResearch(query, allSources, categorizedSources) {
     // Extract key findings - look for specific data points
     for (const source of categorizedSources.government.slice(0, 10)) {
         if (source.snippet) {
-            // Look for sentences with numbers, dates, or specific claims
             const sentences = source.snippet.split(/[.!?]+/);
             for (const sentence of sentences) {
                 if (sentence.length > 30 && sentence.length < 200) {
@@ -444,7 +455,7 @@ async function synthesizeResearch(query, allSources, categorizedSources) {
         }
     }
     
-    // Use AI to synthesize findings (without hardcoding)
+    // Use AI to synthesize findings
     if (groqKey && allSources.length > 0) {
         try {
             const sourcesText = allSources.slice(0, 20).map(s => `[${s.type.toUpperCase()}] ${s.snippet}`).join('\n\n');
@@ -483,8 +494,6 @@ Focus on extracting the actual facts from the source material.`
             if (response.ok) {
                 const data = await response.json();
                 summary = data.choices?.[0]?.message?.content || `Research findings for "${query}".`;
-                
-                // Clean up any remaining labels
                 summary = summary.replace(/\d{3}-\d{3}\s*words?/gi, '');
                 summary = summary.replace(/Comprehensive Summary:?/gi, '');
                 summary = summary.replace(/Detailed Analysis:?/gi, '');
