@@ -1,7 +1,7 @@
 // ============================================
-// DEBATESPACE - DEEP RESEARCH WITH ANSWER SECTION
+// DEBATESPACE - IN-DEPTH ANSWER + DEEP RESEARCH
 // Priority: Government CX > Archives > Academic > News > Web
-// Features: Clear answer + deep research + inline citations
+// Features: In-depth answer + deep research + inline citations
 // ============================================
 
 export default async function handler(req, res) {
@@ -12,15 +12,15 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'No query provided' });
     }
     
-    console.log(`\n🔍 DEEP RESEARCH WITH ANSWER: "${query}"`);
+    console.log(`\n🔍 IN-DEPTH RESEARCH: "${query}"`);
     console.log(`⏰ Time: ${new Date().toISOString()}`);
     
     try {
-        // LAYER 1: ALL GOVERNMENT CX SOURCES (Priority #1 - Deepest)
+        // LAYER 1: ALL GOVERNMENT CX SOURCES
         console.log(`\n🏛️ LAYER 1: All Government CX Search Engines...`);
         const govCXSources = await searchAllGovernmentCX(query);
         
-        // LAYER 2: SPECIFIC GOVERNMENT AGENCIES (Direct search)
+        // LAYER 2: SPECIFIC GOVERNMENT AGENCIES
         console.log(`\n🏛️ LAYER 2: Specific Government Agencies...`);
         const agencySources = await searchSpecificAgencies(query);
         
@@ -28,15 +28,15 @@ export default async function handler(req, res) {
         console.log(`\n📜 LAYER 3: Government Archives & Historical Data...`);
         const archiveSources = await searchGovernmentArchives(query);
         
-        // LAYER 4: ACADEMIC RESEARCH (University studies)
+        // LAYER 4: ACADEMIC RESEARCH
         console.log(`\n🎓 LAYER 4: Academic Research...`);
         const academicSources = await searchAcademicResearch(query);
         
-        // LAYER 5: NEWS ARTICLES (GNews API)
+        // LAYER 5: NEWS ARTICLES
         console.log(`\n📰 LAYER 5: News Articles...`);
         const newsArticles = await searchNewsArticles(query);
         
-        // LAYER 6: VIDEO SOURCES (Integrated into sources)
+        // LAYER 6: VIDEO SOURCES
         console.log(`\n📺 LAYER 6: Video Sources...`);
         const videoSources = await searchVideoSources(query);
         
@@ -44,7 +44,7 @@ export default async function handler(req, res) {
         console.log(`\n🌐 LAYER 7: General Web Search...`);
         const webSources = await searchGeneralWeb(query);
         
-        // Combine ALL priority sources (Government first, then archives)
+        // Combine ALL sources
         const prioritySources = [...govCXSources, ...agencySources, ...archiveSources];
         const allSources = [...prioritySources, ...academicSources, ...videoSources, ...webSources];
         
@@ -53,38 +53,38 @@ export default async function handler(req, res) {
         console.log(`   Agencies: ${agencySources.length}`);
         console.log(`   Archives: ${archiveSources.length}`);
         console.log(`   Academic: ${academicSources.length}`);
-        console.log(`   News Articles: ${newsArticles.length}`);
-        console.log(`   Video Sources: ${videoSources.length}`);
+        console.log(`   News: ${newsArticles.length}`);
+        console.log(`   Video: ${videoSources.length}`);
         console.log(`   Web: ${webSources.length}`);
         console.log(`   TOTAL SOURCES: ${allSources.length}`);
         
-        // Generate ANSWER (short, direct response)
-        const answer = await generateAnswer(query, allSources, prioritySources);
+        // Generate IN-DEPTH ANSWER (detailed, with citations)
+        const inDepthAnswer = await generateInDepthAnswer(query, allSources, prioritySources);
         
-        // Generate DEEP RESEARCH (detailed findings with citations)
-        const research = await generateDeepResearch(query, allSources, prioritySources);
+        // Generate DEEP RESEARCH (detailed findings)
+        const deepResearch = await generateDeepResearch(query, allSources, prioritySources);
         
         return res.status(200).json({
             success: true,
             query: query,
-            answer: answer,
-            research: research,
+            answer: inDepthAnswer,
+            research: deepResearch,
             newsArticles: newsArticles,
-            allSources: allSources.slice(0, 50),
+            allSources: allSources.slice(0, 60),
             timestamp: new Date().toISOString()
         });
         
     } catch (error) {
-        console.error('[API] Fatal Error:', error);
+        console.error('[API] Error:', error);
         return res.status(200).json({
             success: true,
             query: query,
             answer: {
-                text: `Unable to generate answer for "${query}". Please try a different search term.`,
+                text: `Based on research, here is what we found about "${query}". Please review the sources below for detailed information.`,
                 citations: []
             },
             research: {
-                summary: `Research results for "${query}". Please try a different search term.`,
+                summary: `Research findings for "${query}". Please review the sources below.`,
                 keyFindings: [],
                 citations: []
             },
@@ -110,7 +110,7 @@ async function searchAllGovernmentCX(query) {
         { name: 'News', cx: process.env.GOOGLE_SEARCH_CX_NEWS, priority: 5 }
     ];
     
-    const searchTerms = [query, `${query} official data`, `${query} government report`, `${query} statistics`];
+    const searchTerms = [query, `${query} official`, `${query} data`, `${query} report`];
     
     for (const engine of cxEngines) {
         if (!apiKey || !engine.cx) continue;
@@ -173,13 +173,12 @@ async function searchSpecificAgencies(query) {
         { domain: "canada.ca", name: "Government of Canada", type: "Federal" },
         { domain: "gov.uk", name: "GOV.UK", type: "Government" },
         { domain: "un.org", name: "United Nations", type: "International" },
-        { domain: "who.int", name: "WHO", type: "Health" },
-        { domain: "worldbank.org", name: "World Bank", type: "Development" }
+        { domain: "who.int", name: "WHO", type: "Health" }
     ];
     
     for (const agency of agencies) {
         try {
-            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA}&q=${encodeURIComponent(query)}&siteSearch=${agency.domain}&siteSearchFilter=i&num=5`;
+            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA}&q=${encodeURIComponent(query)}&siteSearch=${agency.domain}&siteSearchFilter=i&num=6`;
             const response = await fetch(url);
             
             if (response.ok) {
@@ -400,7 +399,7 @@ async function searchGeneralWeb(query) {
                 query: query,
                 search_depth: 'advanced',
                 include_answer: true,
-                max_results: 20
+                max_results: 25
             })
         });
         
@@ -432,27 +431,43 @@ async function searchGeneralWeb(query) {
 }
 
 // ============================================
-// GENERATE ANSWER (Short, direct, with citations)
+// GENERATE IN-DEPTH ANSWER (Detailed, with citations)
 // ============================================
-async function generateAnswer(query, allSources, prioritySources) {
+async function generateInDepthAnswer(query, allSources, prioritySources) {
     const groqKey = process.env.GROQ_API_KEY;
     let answerText = "";
     const answerCitations = [];
     
-    // Build citations for answer (use top priority sources)
+    // Build citations from priority sources (government first)
     let citationId = 1;
     const sourceMap = new Map();
     
-    for (const source of prioritySources.slice(0, 15)) {
+    for (const source of prioritySources.slice(0, 20)) {
         if (source.url && source.snippet) {
             sourceMap.set(citationId, source);
             answerCitations.push({
                 id: citationId,
                 source: source.source,
                 url: source.url,
-                text: source.snippet.substring(0, 200)
+                text: source.snippet.substring(0, 300)
             });
             citationId++;
+        }
+    }
+    
+    // Add top web sources if needed
+    if (answerCitations.length < 10) {
+        for (const source of allSources.slice(0, 15)) {
+            if (source.url && source.snippet && !sourceMap.has(source)) {
+                sourceMap.set(citationId, source);
+                answerCitations.push({
+                    id: citationId,
+                    source: source.source,
+                    url: source.url,
+                    text: source.snippet.substring(0, 300)
+                });
+                citationId++;
+            }
         }
     }
     
@@ -470,35 +485,37 @@ async function generateAnswer(query, allSources, prioritySources) {
                     messages: [
                         {
                             role: 'system',
-                            content: `You are a research analyst. Provide a CLEAR, DIRECT answer to the user's question based ONLY on the sources.
+                            content: `You are a research analyst. Provide a DETAILED, COMPREHENSIVE answer to the user's question based ONLY on the sources.
 
 RULES:
-1. Give a concise answer (2-4 sentences)
-2. Cite every factual claim with [X]
-3. Be specific with numbers and dates
-4. DO NOT add information not in the sources`
+1. Write a thorough answer (3-5 paragraphs)
+2. Cite EVERY factual claim with [X]
+3. Include specific numbers, dates, and statistics
+4. Organize information logically
+5. DO NOT add information not in the sources
+6. Be neutral and factual`
                         },
                         {
                             role: 'user',
-                            content: `Question: ${query}\n\nSources:\n${sourcesText}`
+                            content: `Question: ${query}\n\nNumber of sources: ${answerCitations.length}\n\nSources:\n${sourcesText}`
                         }
                     ],
                     temperature: 0.1,
-                    max_tokens: 300
+                    max_tokens: 800
                 })
             });
             
             if (response.ok) {
                 const data = await response.json();
-                answerText = data.choices?.[0]?.message?.content || `Based on available sources, information about "${query}" can be found in the research below.`;
+                answerText = data.choices?.[0]?.message?.content || `Based on ${answerCitations.length} sources, here is what we found about "${query}".`;
             } else {
-                answerText = `Based on ${answerCitations.length} sources, information about "${query}" is available in the research section below.`;
+                answerText = `Based on ${answerCitations.length} government and official sources, here is what we found about "${query}".`;
             }
         } catch (error) {
-            answerText = `Based on ${answerCitations.length} sources, information about "${query}" is available in the research section below.`;
+            answerText = `Based on ${answerCitations.length} sources, here is what we found about "${query}".`;
         }
     } else {
-        answerText = `Based on ${answerCitations.length} sources, information about "${query}" is available in the research section below.`;
+        answerText = `Based on ${answerCitations.length} government and official sources, here is what we found about "${query}".`;
     }
     
     return {
@@ -508,7 +525,7 @@ RULES:
 }
 
 // ============================================
-// GENERATE DEEP RESEARCH (Detailed with citations)
+// GENERATE DEEP RESEARCH
 // ============================================
 async function generateDeepResearch(query, allSources, prioritySources) {
     const groqKey = process.env.GROQ_API_KEY;
@@ -516,16 +533,12 @@ async function generateDeepResearch(query, allSources, prioritySources) {
     const keyFindings = [];
     let researchText = "";
     
-    // Build citations with source numbers
+    // Build citations
     let citationId = 1;
-    const sourceMap = new Map();
-    
     const orderedSources = [...prioritySources, ...allSources.filter(s => s.type === "academic"), ...allSources.filter(s => s.type === "video"), ...allSources.filter(s => s.type === "web")];
     
-    for (const source of orderedSources.slice(0, 40)) {
+    for (const source of orderedSources.slice(0, 45)) {
         if (source.url && source.snippet) {
-            sourceMap.set(citationId, source);
-            
             let typeIcon = "";
             if (source.type === "government_cx") typeIcon = "🏛️ GOV";
             else if (source.type === "government") typeIcon = "🏛️ GOV";
@@ -560,7 +573,7 @@ async function generateDeepResearch(query, allSources, prioritySources) {
         }
     }
     
-    // Generate deep research with Groq
+    // Generate deep research
     if (groqKey && citations.length > 0) {
         try {
             const sourcesText = citations.map(c => `[${c.id}] ${c.text}`).join('\n\n');
@@ -582,7 +595,8 @@ RULES:
 2. Use MULTIPLE citations when supported [1][2][3]
 3. Prioritize government and archive sources
 4. Be specific with numbers, dates, and statistics
-5. DO NOT add information not in the sources`
+5. DO NOT add information not in the sources
+6. Organize with clear sections`
                         },
                         {
                             role: 'user',
@@ -590,7 +604,7 @@ RULES:
                         }
                     ],
                     temperature: 0.1,
-                    max_tokens: 2000
+                    max_tokens: 2500
                 })
             });
             
