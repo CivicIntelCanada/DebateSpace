@@ -1,5 +1,6 @@
 // ============================================
-// DEBATESPACE - DISPLAY WITH IN-DEPTH ANSWER
+// DEBATESPACE - DEEP RESEARCH DISPLAY
+// Answer integrated into research findings
 // ============================================
 
 async function searchDebate() {
@@ -75,32 +76,6 @@ function renderResults(data, query) {
         formattedText = paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
         
         return formattedText;
-    };
-    
-    // Render In-Depth Answer Section
-    const renderAnswer = (answer) => {
-        if (!answer || !answer.text) return '';
-        return `
-            <div class="answer-card">
-                <div class="answer-header">
-                    <span class="answer-icon">📌</span>
-                    <span>IN-DEPTH ANSWER</span>
-                </div>
-                <div class="answer-text">
-                    ${formatWithCitations(answer.text, answer.citations || [])}
-                </div>
-                ${answer.citations && answer.citations.length > 0 ? `
-                    <div class="answer-citations">
-                        <span class="answer-citation-label">📖 Sources referenced in this answer:</span>
-                        <div class="answer-citations-list">
-                            ${answer.citations.map(c => `
-                                <a href="${c.url}" target="_blank" class="answer-citation-link">[${c.id}] ${c.source}</a>
-                            `).join('')}
-                        </div>
-                    </div>
-                ` : ''}
-            </div>
-        `;
     };
     
     const renderKeyFindings = (findings) => {
@@ -202,27 +177,30 @@ function renderResults(data, query) {
     };
     
     let html = `
-        ${renderAnswer(data.answer)}
         <div class="research-card">
             <div class="research-header">
                 <span class="research-icon">✅</span>
                 <span>DEEP RESEARCH FINDINGS</span>
             </div>
-            <div class="research-summary">
-                ${formatWithCitations(data.research?.summary, data.research?.citations || [])}
+            <div class="research-answer">
+                <span class="answer-label">📌 ANSWER:</span>
+                <div class="answer-text">${formatWithCitations(data.deepResearch?.answer, data.deepResearch?.citations || [])}</div>
             </div>
-            ${renderKeyFindings(data.research?.keyFindings)}
+            <div class="research-summary">
+                ${formatWithCitations(data.deepResearch?.summary, data.deepResearch?.citations || [])}
+            </div>
+            ${renderKeyFindings(data.deepResearch?.keyFindings)}
             <div class="research-tip">💡 Numbers in brackets [1] are clickable citations. Click to verify the source directly.</div>
         </div>
-        ${renderCitations(data.research?.citations)}
+        ${renderCitations(data.deepResearch?.citations)}
         ${renderNewsArticles(data.newsArticles)}
         ${renderAllSources(data.allSources)}
         <div class="stats-footer">
             <span>🔍 "${query}"</span>
-            <span>🏛️ ${data.research?.sourceCounts?.government || 0} Gov Sources</span>
-            <span>🎓 ${data.research?.sourceCounts?.academic || 0} Academic</span>
+            <span>🏛️ ${data.deepResearch?.sourceCounts?.government || 0} Gov Sources</span>
+            <span>🎓 ${data.deepResearch?.sourceCounts?.academic || 0} Academic</span>
             <span>📰 ${data.newsArticles?.length || 0} News</span>
-            <span>📋 ${data.research?.citations?.length || 0} Citations</span>
+            <span>📋 ${data.deepResearch?.citations?.length || 0} Citations</span>
             <span>📚 ${data.allSources?.length || 0} Total Sources</span>
         </div>
     `;
@@ -238,62 +216,6 @@ function setSearch(topic) {
 // Styles
 const styles = `
 <style>
-/* Answer Card */
-.answer-card {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(59, 130, 246, 0.05));
-    border: 2px solid rgba(59, 130, 246, 0.3);
-    border-radius: 24px;
-    padding: 28px;
-    margin-bottom: 28px;
-}
-.answer-header {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #60a5fa;
-    margin-bottom: 16px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid rgba(59, 130, 246, 0.3);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.answer-icon { font-size: 1.3rem; }
-.answer-text {
-    font-size: 1rem;
-    line-height: 1.6;
-    color: #e4e4e7;
-    margin-bottom: 20px;
-}
-.answer-text p {
-    margin-bottom: 12px;
-}
-.answer-citations {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(255,255,255,0.1);
-}
-.answer-citation-label {
-    font-size: 0.75rem;
-    color: #a1a1aa;
-    display: block;
-    margin-bottom: 12px;
-}
-.answer-citations-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-.answer-citation-link {
-    font-size: 0.7rem;
-    color: #60a5fa;
-    text-decoration: none;
-    padding: 4px 12px;
-    background: rgba(59,130,246,0.1);
-    border-radius: 20px;
-}
-.answer-citation-link:hover { background: rgba(59,130,246,0.2); text-decoration: underline; }
-
-/* Research Card */
 .research-card {
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.05));
     border: 2px solid rgba(16, 185, 129, 0.3);
@@ -313,6 +235,27 @@ const styles = `
     gap: 10px;
 }
 .research-icon { font-size: 1.3rem; }
+.research-answer {
+    background: rgba(59, 130, 246, 0.15);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 20px;
+    border-left: 3px solid #60a5fa;
+}
+.answer-label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #60a5fa;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.answer-text {
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #e4e4e7;
+}
 .research-summary {
     font-size: 1rem;
     line-height: 1.6;
@@ -536,13 +479,12 @@ const styles = `
     margin-top: 16px;
 }
 @media (max-width: 768px) {
-    .answer-card, .research-card, .citations-section, .key-findings-section, .news-section, .allsources-section { padding: 16px; }
+    .research-card, .citations-section, .key-findings-section, .news-section, .allsources-section { padding: 16px; }
     .stats-footer { gap: 10px; }
     .citation-item { flex-direction: column; }
     .citation-source { flex-direction: column; align-items: flex-start; }
     .allsource-item { flex-wrap: wrap; }
     .allsource-domain { max-width: none; white-space: normal; }
-    .answer-citations-list { flex-direction: column; }
 }
 </style>
 `;
@@ -561,4 +503,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - In-depth answer + deep research with citations');
+console.log('DebateSpace loaded - Deep research for ALL searches with integrated answer');
