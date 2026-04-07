@@ -49,7 +49,27 @@ function renderResults(data, query) {
         formattedText = formattedText.replace(/\[(\d+)\]/g, (match, num) => {
             const citation = citations.find(c => c.id == num);
             if (citation) {
-                return `<a href="${citation.url}" target="_blank" class="citation-inline" title="View source: ${citation.source}">[${num}]</a>`;
+                return `<a href="${citation.url}" target="_blank" class="citation-inline" title="Click to verify source: ${citation.source}">[${num}]</a>`;
+            }
+            return match;
+        });
+        
+        // Handle multiple citations like [1][2][3]
+        formattedText = formattedText.replace(/\[(\d+)\]\[(\d+)\]\[(\d+)\]/g, (match, n1, n2, n3) => {
+            const c1 = citations.find(c => c.id == n1);
+            const c2 = citations.find(c => c.id == n2);
+            const c3 = citations.find(c => c.id == n3);
+            if (c1 && c2 && c3) {
+                return `<a href="${c1.url}" target="_blank" class="citation-inline">[${n1}]</a><a href="${c2.url}" target="_blank" class="citation-inline">[${n2}]</a><a href="${c3.url}" target="_blank" class="citation-inline">[${n3}]</a>`;
+            }
+            return match;
+        });
+        
+        formattedText = formattedText.replace(/\[(\d+)\]\[(\d+)\]/g, (match, n1, n2) => {
+            const c1 = citations.find(c => c.id == n1);
+            const c2 = citations.find(c => c.id == n2);
+            if (c1 && c2) {
+                return `<a href="${c1.url}" target="_blank" class="citation-inline">[${n1}]</a><a href="${c2.url}" target="_blank" class="citation-inline">[${n2}]</a>`;
             }
             return match;
         });
@@ -84,7 +104,7 @@ function renderResults(data, query) {
             <div class="citations-section">
                 <div class="section-header">
                     <span class="section-icon">📋</span>
-                    <span>SOURCE CITATIONS & VERIFIED DATA</span>
+                    <span>SOURCE CITATIONS (${citations.length})</span>
                 </div>
                 <div class="citations-list">
                     ${citations.map(citation => `
@@ -93,7 +113,7 @@ function renderResults(data, query) {
                             <div class="citation-content">
                                 <div class="citation-text">${citation.text}</div>
                                 <div class="citation-source">
-                                    <span class="source-label">📌 ${citation.source}</span>
+                                    <span class="source-label">${citation.source}</span>
                                     <a href="${citation.url}" target="_blank" class="citation-link">🔗 View Original Source</a>
                                 </div>
                             </div>
@@ -144,6 +164,7 @@ function renderResults(data, query) {
                             <div class="video-info">
                                 <div class="video-title">${v.title}</div>
                                 <div class="video-channel">${v.channel}</div>
+                                ${v.views && v.views !== 'N/A' ? `<div class="video-views">👁️ ${v.views} views</div>` : ''}
                                 ${v.type === 'search' ? '<div class="video-search-badge">🔍 Click to search YouTube</div>' : ''}
                             </div>
                         </div>
@@ -184,7 +205,7 @@ function renderResults(data, query) {
                 ${formatResearchWithCitations(data.research?.summary, data.research?.citations || [])}
             </div>
             ${renderKeyFindings(data.research?.keyFindings)}
-            <div class="research-tip">💡 Numbers in brackets [1] are clickable citations. Click to verify the source.</div>
+            <div class="research-tip">💡 Numbers in brackets [1] are clickable citations. Click to verify the source directly.</div>
         </div>
         ${renderCitations(data.research?.citations)}
         ${renderNewsArticles(data.newsArticles)}
@@ -193,10 +214,11 @@ function renderResults(data, query) {
         <div class="stats-footer">
             <span>🔍 "${query}"</span>
             <span>🏛️ ${data.research?.sourceCounts?.government || 0} Gov Sources</span>
-            <span>📰 ${data.newsArticles?.length || 0} News Articles</span>
+            <span>🎓 ${data.research?.sourceCounts?.academic || 0} Academic</span>
+            <span>📰 ${data.newsArticles?.length || 0} News</span>
             <span>📋 ${data.research?.citations?.length || 0} Citations</span>
             <span>📺 ${data.youtube?.length || 0} Videos</span>
-            <span>📚 ${data.allSources?.length || 0} Total Sources</span>
+            <span>📚 ${data.allSources?.length || 0} Total</span>
         </div>
     `;
     
@@ -245,6 +267,7 @@ const styles = `
     text-decoration: none;
     font-weight: bold;
     padding: 0 2px;
+    font-size: 0.85rem;
 }
 .citation-inline:hover {
     text-decoration: underline;
@@ -281,6 +304,8 @@ const styles = `
     display: flex;
     flex-direction: column;
     gap: 16px;
+    max-height: 600px;
+    overflow-y: auto;
 }
 .citation-item {
     background: rgba(0, 0, 0, 0.3);
@@ -341,6 +366,8 @@ const styles = `
     display: flex;
     flex-direction: column;
     gap: 16px;
+    max-height: 500px;
+    overflow-y: auto;
 }
 .news-item {
     background: rgba(0, 0, 0, 0.3);
@@ -372,7 +399,7 @@ const styles = `
 }
 .video-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 16px;
 }
 .video-card {
@@ -401,6 +428,7 @@ const styles = `
     margin-bottom: 4px;
 }
 .video-channel { font-size: 0.65rem; color: #71717a; }
+.video-views { font-size: 0.6rem; color: #71717a; margin-top: 4px; }
 .video-search-badge {
     font-size: 0.6rem;
     color: #60a5fa;
@@ -410,7 +438,7 @@ const styles = `
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-height: 300px;
+    max-height: 400px;
     overflow-y: auto;
 }
 .allsource-item {
@@ -420,6 +448,7 @@ const styles = `
     gap: 8px;
     align-items: center;
     flex-wrap: wrap;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 .allsource-num {
     color: #71717a;
@@ -473,7 +502,7 @@ const styles = `
     margin-top: 16px;
 }
 @media (max-width: 768px) {
-    .research-card, .citations-section, .news-section, .video-section, .allsources-section { padding: 16px; }
+    .research-card, .citations-section, .key-findings-section, .news-section, .video-section, .allsources-section { padding: 16px; }
     .video-grid { grid-template-columns: 1fr; }
     .stats-footer { gap: 10px; }
     .citation-item { flex-direction: column; }
@@ -496,4 +525,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Complete deep research with citations');
+console.log('DebateSpace loaded - Maximum depth research with full citations');
