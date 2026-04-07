@@ -1,6 +1,6 @@
 // ============================================
-// DEBATESPACE - DEEP RESEARCH + YOUTUBE FIXED
-// Government FIRST + Deep analysis + YouTube videos
+// DEBATESPACE - DEEP RESEARCH (RESTORED)
+// Government sources + Deep analysis + Working YouTube
 // ============================================
 
 export default async function handler(req, res) {
@@ -19,13 +19,8 @@ export default async function handler(req, res) {
             fetchAllGovernmentSources(query),
             fetchTavilyDeep(query),
             fetchGroqDeep(query),
-            fetchYouTubeFixed(query)
+            fetchYouTubeWorking(query)
         ]);
-        
-        console.log(`[YouTube] Found ${youtubeResult?.length || 0} videos`);
-        console.log(`[Gov] Found ${govResults?.sources?.length || 0} government sources`);
-        console.log(`[Tavily] Has answer: ${!!tavilyResult?.answer}`);
-        console.log(`[Groq] Has analysis: ${!!groqResult?.analysis}`);
         
         // Build deep fact check
         const factCheck = buildDeepFactCheck(query, tavilyResult, groqResult, govResults);
@@ -34,7 +29,7 @@ export default async function handler(req, res) {
             success: true,
             query: query,
             factCheck: factCheck,
-            youtube: youtubeResult || [],
+            youtube: youtubeResult,
             timestamp: new Date().toISOString()
         });
         
@@ -98,7 +93,7 @@ async function fetchAllGovernmentSources(query) {
         }
     }
     
-    // Also do a general government search
+    // General government search
     try {
         const govQuery = `${query} government official data`;
         const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(govQuery)}&num=10`;
@@ -162,7 +157,6 @@ async function fetchTavilyDeep(query) {
         });
         
         const data = await response.json();
-        console.log(`[Tavily] Answer received: ${data.answer?.substring(0, 100)}...`);
         
         const sources = [];
         if (data.results) {
@@ -231,7 +225,6 @@ async function fetchGroqDeep(query) {
         
         const data = await response.json();
         const analysis = data.choices?.[0]?.message?.content;
-        console.log(`[Groq] Analysis length: ${analysis?.length || 0}`);
         
         return {
             analysis: analysis,
@@ -245,44 +238,57 @@ async function fetchGroqDeep(query) {
 }
 
 // ============================================
-// YOUTUBE API - FIXED
+// YOUTUBE API - WORKING WITH THUMBNAILS
 // ============================================
-async function fetchYouTubeFixed(query) {
+async function fetchYouTubeWorking(query) {
     const apiKey = process.env.YOUTUBE_API_KEY;
     
-    console.log(`[YouTube] API Key present: ${!!apiKey}`);
-    
     if (!apiKey) {
-        console.log('[YouTube] No API key found');
+        console.log('[YouTube] No API key');
         return getFallbackYouTube(query);
     }
     
     try {
-        const searchQuery = `${query} explained documentary analysis`;
+        // Use a more effective search query
+        const searchQuery = `${query} documentary analysis explained`;
         const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=6&key=${apiKey}`;
         const response = await fetch(url);
         
-        console.log(`[YouTube] Response status: ${response.status}`);
-        
         if (!response.ok) {
-            console.log('[YouTube] API error, using fallback');
+            console.log('[YouTube] API error:', response.status);
             return getFallbackYouTube(query);
         }
         
         const data = await response.json();
         
         if (!data.items || data.items.length === 0) {
-            console.log('[YouTube] No videos found, using fallback');
             return getFallbackYouTube(query);
         }
         
-        console.log(`[YouTube] Found ${data.items.length} videos`);
+        // Get video IDs for statistics
+        const videoIds = data.items.map(item => item.id.videoId).join(',');
+        const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}&key=${apiKey}`;
+        const statsResponse = await fetch(statsUrl);
+        let statsMap = {};
+        
+        if (statsResponse.ok) {
+            const statsData = await statsResponse.json();
+            if (statsData.items) {
+                statsMap = statsData.items.reduce((map, item) => {
+                    map[item.id] = {
+                        views: parseInt(item.statistics?.viewCount || 0).toLocaleString()
+                    };
+                    return map;
+                }, {});
+            }
+        }
         
         return data.items.map(item => ({
             title: item.snippet.title,
             url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
             channel: item.snippet.channelTitle,
-            thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || ''
+            thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || '',
+            views: statsMap[item.id.videoId]?.views || 'N/A'
         }));
         
     } catch (error) {
@@ -294,8 +300,9 @@ async function fetchYouTubeFixed(query) {
 function getFallbackYouTube(query) {
     const encoded = encodeURIComponent(query);
     return [
-        { title: `Search YouTube for "${query}"`, url: `https://www.youtube.com/results?search_query=${encoded}`, channel: "YouTube Search", thumbnail: "" },
-        { title: `${query} - explained`, url: `https://www.youtube.com/results?search_query=${encoded}+explained`, channel: "YouTube Search", thumbnail: "" }
+        { title: `YouTube search: "${query}"`, url: `https://www.youtube.com/results?search_query=${encoded}`, channel: "YouTube Search", thumbnail: "", views: "Search" },
+        { title: `${query} - explained`, url: `https://www.youtube.com/results?search_query=${encoded}+explained`, channel: "YouTube Search", thumbnail: "", views: "Search" },
+        { title: `${query} - documentary`, url: `https://www.youtube.com/results?search_query=${encoded}+documentary`, channel: "YouTube Search", thumbnail: "", views: "Search" }
     ];
 }
 
@@ -310,7 +317,7 @@ function buildDeepFactCheck(query, tavilyResult, groqResult, govResults) {
         for (const source of govResults.sources.slice(0, 15)) {
             if (source.url && source.snippet) {
                 citedClaims.push({
-                    claim: source.snippet,
+                    claim: source.snippet.length > 350 ? source.snippet.substring(0, 350) + '...' : source.snippet,
                     source: source.isGovernment ? `🏛️ ${source.name}` : source.name,
                     url: source.url
                 });
@@ -319,11 +326,11 @@ function buildDeepFactCheck(query, tavilyResult, groqResult, govResults) {
     }
     
     // Add Tavily sources
-    if (tavilyResult?.sources && citedClaims.length < 20) {
+    if (tavilyResult?.sources && citedClaims.length < 25) {
         for (const source of tavilyResult.sources.slice(0, 10)) {
             if (source.url && source.snippet && !citedClaims.some(c => c.url === source.url)) {
                 citedClaims.push({
-                    claim: source.snippet,
+                    claim: source.snippet.length > 350 ? source.snippet.substring(0, 350) + '...' : source.snippet,
                     source: source.name,
                     url: source.url
                 });
@@ -344,8 +351,8 @@ function buildDeepFactCheck(query, tavilyResult, groqResult, govResults) {
     }
     
     // Limit summary length
-    if (summary.length > 1000) {
-        summary = summary.substring(0, 1000) + '...';
+    if (summary.length > 800) {
+        summary = summary.substring(0, 800) + '...';
     }
     
     return {
