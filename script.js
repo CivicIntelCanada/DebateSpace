@@ -1,5 +1,5 @@
 // ============================================
-// DEBATESPACE - CLEAN LAYOUT WITH FINAL ANSWER
+// DEBATESPACE - CLEAN GOVERNMENT DATA DISPLAY
 // ============================================
 
 async function searchDebate() {
@@ -40,18 +40,37 @@ function renderResults(data, query) {
     
     const renderCitedClaims = (claims) => {
         if (!claims || claims.length === 0) {
-            return '<div class="no-claims">🔍 No specific claims found. Try a different search term.</div>';
+            return '<div class="no-claims">🔍 No government sources found. Try a different search term or use the search links below.</div>';
         }
         return `
             <div class="cited-claims">
-                <div class="claims-header">📋 VERIFIED SOURCES & GOVERNMENT DATA:</div>
+                <div class="claims-header">📋 OFFICIAL GOVERNMENT SOURCES:</div>
                 <div class="claims-list">
                     ${claims.map(claim => `
-                        <div class="claim-item ${claim.isGovernment ? 'gov-claim' : ''}">
-                            <span class="claim-text">${claim.claim.length > 250 ? claim.claim.substring(0, 250) + '...' : claim.claim}</span>
+                        <div class="claim-item">
+                            <span class="claim-text">${claim.claim.length > 400 ? claim.claim.substring(0, 400) + '...' : claim.claim}</span>
                             <a href="${claim.url}" target="_blank" rel="noopener noreferrer" class="claim-source">🔗 ${claim.source}</a>
-                            ${claim.isGovernment ? '<span class="gov-badge">🏛️ Official Source</span>' : ''}
                         </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    };
+    
+    const renderGovernmentLinks = (links) => {
+        if (!links || links.length === 0) return '';
+        return `
+            <div class="search-links-section">
+                <div class="section-header">
+                    <span class="section-icon">🔍</span>
+                    <span>SEARCH GOVERNMENT WEBSITES DIRECTLY</span>
+                </div>
+                <div class="search-links-grid">
+                    ${links.map(link => `
+                        <a href="${link.url}" target="_blank" class="search-link-card">
+                            <strong>${link.name}</strong>
+                            <span>${link.type}</span>
+                        </a>
                     `).join('')}
                 </div>
             </div>
@@ -85,26 +104,19 @@ function renderResults(data, query) {
         <div class="fact-card">
             <div class="fact-header">
                 <span class="fact-icon">✅</span>
-                <span>FACT CHECK & DEEP RESEARCH</span>
+                <span>FACT CHECK - OFFICIAL GOVERNMENT DATA</span>
             </div>
-            <div class="fact-verdict">${data.factCheck?.verdict || '🔍 GOVERNMENT RESEARCH'}</div>
+            <div class="fact-verdict">${data.factCheck?.verdict || '🏛️ GOVERNMENT SOURCES'}</div>
             <div class="fact-summary">${data.factCheck?.summary || 'No information available'}</div>
-            
-            ${data.factCheck?.finalAnswer ? `
-                <div class="final-answer">
-                    <div class="final-answer-header">📌 FINAL ANSWER:</div>
-                    <div class="final-answer-text">${data.factCheck.finalAnswer}</div>
-                </div>
-            ` : ''}
-            
             ${renderCitedClaims(data.factCheck?.citedClaims)}
+            ${renderGovernmentLinks(data.factCheck?.governmentLinks)}
             ${data.factCheck?.tip ? `<div class="fact-tip">💡 ${data.factCheck.tip}</div>` : ''}
         </div>
         ${renderYouTube(data.youtube)}
         <div class="stats-footer">
             <span>🔍 "${query}"</span>
             <span>🏛️ ${data.factCheck?.sourceCount?.government || 0} Government Sources</span>
-            <span>📋 ${data.factCheck?.citedClaims?.length || 0} Verified Sources</span>
+            <span>📋 ${data.factCheck?.citedClaims?.length || 0} Total Sources</span>
             <span>📺 ${data.youtube?.length || 0} Videos</span>
         </div>
     `;
@@ -154,27 +166,10 @@ const styles = `
     line-height: 1.6;
     color: #e4e4e7;
     margin-bottom: 20px;
-}
-.final-answer {
-    background: rgba(16, 185, 129, 0.15);
-    border-radius: 16px;
-    padding: 16px 20px;
-    margin: 20px 0;
-    border: 1px solid rgba(16, 185, 129, 0.3);
-}
-.final-answer-header {
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: #10b981;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-.final-answer-text {
-    font-size: 1rem;
-    line-height: 1.5;
-    color: #e4e4e7;
-    font-weight: 500;
+    white-space: pre-wrap;
+    background: rgba(0,0,0,0.2);
+    padding: 16px;
+    border-radius: 12px;
 }
 .fact-tip {
     font-size: 0.8rem;
@@ -204,7 +199,6 @@ const styles = `
     transition: transform 0.2s;
 }
 .claim-item:hover { transform: translateX(4px); background: rgba(16, 185, 129, 0.05); }
-.gov-claim { border-left-color: #fbbf24; }
 .claim-text { display: block; font-size: 0.85rem; color: #e4e4e7; margin-bottom: 10px; line-height: 1.4; }
 .claim-source {
     display: inline-block;
@@ -214,18 +208,9 @@ const styles = `
     padding: 5px 10px;
     background: rgba(16, 185, 129, 0.1);
     border-radius: 8px;
-    margin-right: 8px;
 }
 .claim-source:hover { background: rgba(16, 185, 129, 0.2); text-decoration: underline; }
-.gov-badge {
-    display: inline-block;
-    font-size: 0.6rem;
-    color: #fbbf24;
-    padding: 3px 8px;
-    background: rgba(251, 191, 36, 0.1);
-    border-radius: 12px;
-}
-.video-section {
+.search-links-section, .video-section {
     background: rgba(20, 20, 35, 0.85);
     backdrop-filter: blur(10px);
     border-radius: 24px;
@@ -244,6 +229,23 @@ const styles = `
     gap: 10px;
 }
 .section-icon { font-size: 1.2rem; }
+.search-links-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.search-link-card {
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 12px;
+    padding: 12px 16px;
+    text-decoration: none;
+    transition: all 0.2s;
+    min-width: 160px;
+}
+.search-link-card:hover { background: rgba(59, 130, 246, 0.2); transform: translateY(-2px); }
+.search-link-card strong { display: block; color: #60a5fa; font-size: 0.85rem; margin-bottom: 4px; }
+.search-link-card span { font-size: 0.65rem; color: #71717a; }
 .video-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -316,12 +318,12 @@ const styles = `
     margin-top: 16px;
 }
 @media (max-width: 768px) {
-    .fact-card, .video-section { padding: 18px; }
+    .fact-card, .search-links-section, .video-section { padding: 18px; }
     .video-grid { grid-template-columns: 1fr; }
     .stats-footer { gap: 12px; }
     .claim-item { padding: 10px 12px; }
     .claim-text { font-size: 0.8rem; }
-    .final-answer { padding: 12px 16px; }
+    .search-links-grid { flex-direction: column; }
 }
 </style>
 `;
@@ -340,4 +342,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Government-first deep research with final answer');
+console.log('DebateSpace loaded - Government data first, no AI influence');
