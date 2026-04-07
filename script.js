@@ -1,5 +1,5 @@
 // ============================================
-// DEBATESPACE - DISPLAY WITH IN-DEPTH ANSWER
+// DEBATESPACE - EVERY SENTENCE CITED DISPLAY
 // ============================================
 
 async function searchDebate() {
@@ -38,58 +38,38 @@ async function searchDebate() {
 function renderResults(data, query) {
     const container = document.getElementById('results');
     
-    // Format text with clickable citation links
-    const formatWithCitations = (text, citations) => {
-        if (!text) return 'No information available.';
+    // Format answer with clickable citations for each sentence
+    const formatAnswerWithCitations = (answer) => {
+        if (!answer || !answer.text) return 'No answer available.';
         
-        let formattedText = text;
+        let formattedHtml = '';
         
-        formattedText = formattedText.replace(/\[(\d+)\]/g, (match, num) => {
-            const citation = citations.find(c => c.id == num);
-            if (citation) {
-                return `<a href="${citation.url}" target="_blank" class="citation-inline" title="Click to verify source: ${citation.source}">[${num}]</a>`;
+        // If we have sentence-level citations, use them
+        if (answer.sentences && answer.sentences.length > 0) {
+            for (const sentence of answer.sentences) {
+                const citation = answer.citations.find(c => c.id === sentence.citationId);
+                if (citation) {
+                    formattedHtml += `<span class="sentence-with-citation">${sentence.text}<a href="${citation.url}" target="_blank" class="citation-superscript" title="Source: ${citation.source}">[${sentence.citationId}]</a></span> `;
+                } else {
+                    formattedHtml += `${sentence.text} `;
+                }
             }
-            return match;
-        });
-        
-        formattedText = formattedText.replace(/\[(\d+)\]\[(\d+)\]\[(\d+)\]/g, (match, n1, n2, n3) => {
-            const c1 = citations.find(c => c.id == n1);
-            const c2 = citations.find(c => c.id == n2);
-            const c3 = citations.find(c => c.id == n3);
-            if (c1 && c2 && c3) {
-                return `<a href="${c1.url}" target="_blank" class="citation-inline">[${n1}]</a><a href="${c2.url}" target="_blank" class="citation-inline">[${n2}]</a><a href="${c3.url}" target="_blank" class="citation-inline">[${n3}]</a>`;
+        } else {
+            // Fallback: format whole text with citation links
+            formattedHtml = answer.text;
+            if (answer.citations) {
+                formattedHtml = formattedHtml.replace(/\[(\d+)\]/g, (match, num) => {
+                    const citation = answer.citations.find(c => c.id == num);
+                    if (citation) {
+                        return `<a href="${citation.url}" target="_blank" class="citation-inline" title="${citation.source}">[${num}]</a>`;
+                    }
+                    return match;
+                });
             }
-            return match;
-        });
+        }
         
-        formattedText = formattedText.replace(/\[(\d+)\]\[(\d+)\]/g, (match, n1, n2) => {
-            const c1 = citations.find(c => c.id == n1);
-            const c2 = citations.find(c => c.id == n2);
-            if (c1 && c2) {
-                return `<a href="${c1.url}" target="_blank" class="citation-inline">[${n1}]</a><a href="${c2.url}" target="_blank" class="citation-inline">[${n2}]</a>`;
-            }
-            return match;
-        });
-        
-        const paragraphs = formattedText.split(/\n\n+/);
-        formattedText = paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
-        
-        return formattedText;
-    };
-    
-    const renderKeyFindings = (findings) => {
-        if (!findings || findings.length === 0) return '';
-        return `
-            <div class="key-findings-section">
-                <div class="section-header">
-                    <span class="section-icon">📊</span>
-                    <span>KEY FINDINGS</span>
-                </div>
-                <div class="key-findings-list">
-                    ${findings.map(finding => `<div class="key-finding">📌 ${finding}</div>`).join('')}
-                </div>
-            </div>
-        `;
+        const paragraphs = formattedHtml.split(/\n\n+/);
+        return paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
     };
     
     const renderCitations = (citations) => {
@@ -136,7 +116,30 @@ function renderResults(data, query) {
                                 <span class="news-source">📌 ${article.source}</span>
                                 ${article.date ? `<span class="news-date">📅 ${article.date}</span>` : ''}
                             </div>
-                            ${article.description ? `<div class="news-description">${article.description}...</div>` : ''}
+                            ${article.description ? `<div class="news-description">${article.description.substring(0, 150)}...</div>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    };
+    
+    const renderVideos = (videos) => {
+        if (!videos || videos.length === 0) return '';
+        return `
+            <div class="video-section">
+                <div class="section-header">
+                    <span class="section-icon">📺</span>
+                    <span>VIDEO EXPLANATIONS (${videos.length})</span>
+                </div>
+                <div class="video-grid">
+                    ${videos.map(v => `
+                        <div class="video-card" onclick="window.open('${v.url}', '_blank')">
+                            ${v.thumbnail ? `<img src="${v.thumbnail}" alt="${v.title}">` : '<div class="video-placeholder">🎬</div>'}
+                            <div class="video-info">
+                                <div class="video-title">${v.title}</div>
+                                <div class="video-channel">${v.channel}</div>
+                            </div>
                         </div>
                     `).join('')}
                 </div>
@@ -155,17 +158,17 @@ function renderResults(data, query) {
                 <div class="allsources-list">
                     ${sources.map((source, idx) => {
                         let typeIcon = "";
-                        if (source.type === "government_cx" || source.type === "government") typeIcon = "🏛️";
+                        if (source.type === "government") typeIcon = "🏛️";
                         else if (source.type === "archive") typeIcon = "📜";
                         else if (source.type === "academic") typeIcon = "🎓";
-                        else if (source.type === "video") typeIcon = "📺";
-                        else typeIcon = "🌐";
+                        else if (source.type === "web") typeIcon = "🌐";
+                        else typeIcon = "📄";
                         
                         return `
                             <div class="allsource-item">
                                 <span class="allsource-num">${idx + 1}.</span>
                                 <span class="allsource-type">${typeIcon}</span>
-                                <a href="${source.url}" target="_blank" class="allsource-link">${source.title}</a>
+                                <a href="${source.url}" target="_blank" class="allsource-link">${source.title || source.text?.substring(0, 80)}</a>
                                 <span class="allsource-domain">${source.source}</span>
                             </div>
                         `;
@@ -176,51 +179,34 @@ function renderResults(data, query) {
     };
     
     let html = `
-        <!-- IN-DEPTH ANSWER SECTION -->
+        <!-- IN-DEPTH ANSWER WITH CITATIONS -->
         <div class="answer-card">
             <div class="answer-header">
                 <span class="answer-icon">📌</span>
-                <span>IN-DEPTH ANSWER</span>
+                <span>FACTUAL ANSWER WITH CITATIONS</span>
             </div>
             <div class="answer-text">
-                ${formatWithCitations(data.answer?.text, data.answer?.citations || [])}
+                ${formatAnswerWithCitations(data.answer)}
             </div>
-            ${data.answer?.citations && data.answer.citations.length > 0 ? `
-                <div class="answer-citations">
-                    <span class="answer-citation-label">📖 Sources referenced in this answer:</span>
-                    <div class="answer-citations-list">
-                        ${data.answer.citations.map(c => `
-                            <a href="${c.url}" target="_blank" class="answer-citation-link">[${c.id}] ${c.source}</a>
-                        `).join('')}
-                    </div>
-                </div>
-            ` : ''}
+            <div class="answer-footer">
+                <span class="evidence-count">📊 Based on ${data.answer?.evidenceCount || 0} government and official sources</span>
+                <span class="citation-note">💡 Numbers in brackets [1] are clickable citations that go directly to the source</span>
+            </div>
         </div>
         
-        <!-- DEEP RESEARCH SECTION -->
-        <div class="research-card">
-            <div class="research-header">
-                <span class="research-icon">✅</span>
-                <span>DEEP RESEARCH FINDINGS</span>
-            </div>
-            <div class="research-summary">
-                ${formatWithCitations(data.deepResearch?.summary, data.deepResearch?.citations || [])}
-            </div>
-            ${renderKeyFindings(data.deepResearch?.keyFindings)}
-            <div class="research-tip">💡 Numbers in brackets [1] are clickable citations. Click to verify the source directly.</div>
-        </div>
-        
-        ${renderCitations(data.deepResearch?.citations)}
+        ${renderCitations(data.answer?.citations)}
         ${renderNewsArticles(data.newsArticles)}
+        ${renderVideos(data.videoSources)}
         ${renderAllSources(data.allSources)}
         
         <div class="stats-footer">
             <span>🔍 "${query}"</span>
-            <span>🏛️ ${data.deepResearch?.sourceCounts?.government || 0} Gov Sources</span>
-            <span>🎓 ${data.deepResearch?.sourceCounts?.academic || 0} Academic</span>
+            <span>🏛️ ${data.allSources?.filter(s => s.type === "government").length || 0} Gov Sources</span>
+            <span>📜 ${data.allSources?.filter(s => s.type === "archive").length || 0} Archives</span>
+            <span>🎓 ${data.allSources?.filter(s => s.type === "academic").length || 0} Academic</span>
             <span>📰 ${data.newsArticles?.length || 0} News</span>
-            <span>📋 ${data.deepResearch?.citations?.length || 0} Citations</span>
-            <span>📚 ${data.allSources?.length || 0} Total Sources</span>
+            <span>📺 ${data.videoSources?.length || 0} Videos</span>
+            <span>📋 ${data.answer?.citations?.length || 0} Citations</span>
         </div>
     `;
     
@@ -235,70 +221,14 @@ function setSearch(topic) {
 // Styles
 const styles = `
 <style>
-/* Answer Card */
 .answer-card {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(59, 130, 246, 0.05));
-    border: 2px solid rgba(59, 130, 246, 0.3);
-    border-radius: 24px;
-    padding: 28px;
-    margin-bottom: 28px;
-}
-.answer-header {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #60a5fa;
-    margin-bottom: 16px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid rgba(59, 130, 246, 0.3);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.answer-icon { font-size: 1.3rem; }
-.answer-text {
-    font-size: 1rem;
-    line-height: 1.6;
-    color: #e4e4e7;
-    margin-bottom: 20px;
-}
-.answer-text p {
-    margin-bottom: 12px;
-}
-.answer-citations {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(255,255,255,0.1);
-}
-.answer-citation-label {
-    font-size: 0.75rem;
-    color: #a1a1aa;
-    display: block;
-    margin-bottom: 12px;
-}
-.answer-citations-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-.answer-citation-link {
-    font-size: 0.7rem;
-    color: #60a5fa;
-    text-decoration: none;
-    padding: 4px 12px;
-    background: rgba(59,130,246,0.1);
-    border-radius: 20px;
-}
-.answer-citation-link:hover { background: rgba(59,130,246,0.2); text-decoration: underline; }
-
-/* Research Card */
-.research-card {
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.05));
     border: 2px solid rgba(16, 185, 129, 0.3);
     border-radius: 24px;
     padding: 28px;
     margin-bottom: 28px;
 }
-.research-header {
+.answer-header {
     font-size: 1.2rem;
     font-weight: 700;
     color: #10b981;
@@ -309,15 +239,31 @@ const styles = `
     align-items: center;
     gap: 10px;
 }
-.research-icon { font-size: 1.3rem; }
-.research-summary {
+.answer-icon { font-size: 1.3rem; }
+.answer-text {
     font-size: 1rem;
-    line-height: 1.6;
+    line-height: 1.7;
     color: #e4e4e7;
     margin-bottom: 20px;
 }
-.research-summary p {
+.answer-text p {
     margin-bottom: 12px;
+}
+.sentence-with-citation {
+    display: inline;
+}
+.citation-superscript {
+    display: inline-block;
+    color: #fbbf24;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 0.75rem;
+    margin-left: 2px;
+    padding: 0 2px;
+}
+.citation-superscript:hover {
+    text-decoration: underline;
+    color: #34d399;
 }
 .citation-inline {
     display: inline-block;
@@ -325,19 +271,29 @@ const styles = `
     text-decoration: none;
     font-weight: bold;
     padding: 0 2px;
-    font-size: 0.85rem;
 }
 .citation-inline:hover {
     text-decoration: underline;
     color: #34d399;
 }
-.research-tip {
-    font-size: 0.8rem;
+.answer-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    font-size: 0.75rem;
     color: #a1a1aa;
-    margin-top: 16px;
-    padding: 10px;
-    background: rgba(0,0,0,0.2);
-    border-radius: 10px;
+}
+.evidence-count {
+    background: rgba(16,185,129,0.15);
+    padding: 4px 12px;
+    border-radius: 20px;
+}
+.citation-note {
+    color: #71717a;
 }
 .section-header {
     font-size: 1rem;
@@ -350,7 +306,7 @@ const styles = `
     gap: 10px;
 }
 .section-icon { font-size: 1.1rem; }
-.citations-section, .key-findings-section, .news-section, .allsources-section {
+.citations-section, .news-section, .video-section, .allsources-section {
     background: rgba(20, 20, 35, 0.85);
     backdrop-filter: blur(10px);
     border-radius: 20px;
@@ -408,18 +364,6 @@ const styles = `
     border-radius: 20px;
 }
 .citation-link:hover { background: rgba(16,185,129,0.2); text-decoration: underline; }
-.key-findings-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-.key-finding {
-    font-size: 0.85rem;
-    color: #d4d4d8;
-    padding: 6px 0;
-    border-left: 2px solid #fbbf24;
-    padding-left: 12px;
-}
 .news-list {
     display: flex;
     flex-direction: column;
@@ -455,6 +399,37 @@ const styles = `
     font-size: 0.75rem;
     color: #a1a1aa;
 }
+.video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+.video-card {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.video-card:hover { transform: translateY(-3px); }
+.video-card img { width: 100%; height: 140px; object-fit: cover; }
+.video-placeholder {
+    width: 100%;
+    height: 140px;
+    background: #1a1a2e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+}
+.video-info { padding: 10px; }
+.video-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #e4e4e7;
+    margin-bottom: 4px;
+}
+.video-channel { font-size: 0.65rem; color: #71717a; }
 .allsources-list {
     display: flex;
     flex-direction: column;
@@ -533,13 +508,13 @@ const styles = `
     margin-top: 16px;
 }
 @media (max-width: 768px) {
-    .answer-card, .research-card, .citations-section, .key-findings-section, .news-section, .allsources-section { padding: 16px; }
+    .answer-card, .citations-section, .news-section, .video-section, .allsources-section { padding: 16px; }
     .stats-footer { gap: 10px; }
     .citation-item { flex-direction: column; }
     .citation-source { flex-direction: column; align-items: flex-start; }
     .allsource-item { flex-wrap: wrap; }
     .allsource-domain { max-width: none; white-space: normal; }
-    .answer-citations-list { flex-direction: column; }
+    .answer-footer { flex-direction: column; align-items: flex-start; }
 }
 </style>
 `;
@@ -558,4 +533,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - In-depth answer + deep research');
+console.log('DebateSpace loaded - Every sentence cited from government sources');
