@@ -1,5 +1,5 @@
 // ============================================
-// DEBATESPACE - DEEP RESEARCH DISPLAY
+// DEBATESPACE - COMPLETE DISPLAY WITH YOUTUBE
 // ============================================
 
 async function searchDebate() {
@@ -58,7 +58,9 @@ function renderResults(data, query) {
     };
     
     const renderYouTube = (videos) => {
-        if (!videos || videos.length === 0) return '';
+        if (!videos || videos.length === 0) {
+            return '<div class="video-section"><div class="section-header"><span class="section-icon">📺</span><span>VIDEO EXPLANATIONS</span></div><div class="no-videos">No videos found for this topic</div></div>';
+        }
         return `
             <div class="video-section">
                 <div class="section-header">
@@ -96,8 +98,9 @@ function renderResults(data, query) {
             <span>🔍 "${query}"</span>
             <span>🏛️ ${data.factCheck?.sourceCount?.government || 0} Government Sources</span>
             <span>📚 ${data.factCheck?.sourceCount?.archive || 0} Archive Sources</span>
-            <span>📋 ${data.factCheck?.sourceCount?.total || 0} Total Sources</span>
+            <span>📰 ${data.factCheck?.sourceCount?.news || 0} News Sources</span>
             <span>📺 ${data.youtube?.length || 0} Videos</span>
+            <span>📋 ${data.factCheck?.citedClaims?.length || 0} Total Sources</span>
         </div>
     `;
     
@@ -109,7 +112,7 @@ function setSearch(topic) {
     searchDebate();
 }
 
-// Styles
+// Styles (same as before, ensure video section is styled)
 const styles = `
 <style>
 .fact-card {
@@ -239,6 +242,11 @@ const styles = `
     line-height: 1.3;
 }
 .video-channel { font-size: 0.65rem; color: #71717a; }
+.no-videos {
+    text-align: center;
+    padding: 40px;
+    color: #71717a;
+}
 .stats-footer {
     background: rgba(0, 0, 0, 0.3);
     border-radius: 40px;
@@ -302,4 +310,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Deepest research mode');
+console.log('DebateSpace loaded - Maximum depth research with YouTube');
