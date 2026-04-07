@@ -1,7 +1,7 @@
 // ============================================
 // DEBATESPACE - FACTUAL RESEARCH WITH EXACT QUOTES
-// Every sentence is a direct quote from a source
-// AI only formats - never generates facts
+// PRIORITY: Government > Archives > Scrubbed Data > Academic > Legal > Web
+// News articles are NOT used in the main answer
 // ============================================
 
 export default async function handler(req, res) {
@@ -15,33 +15,40 @@ export default async function handler(req, res) {
     console.log(`\n🔍 RESEARCH: "${query}"`);
     
     try {
-        // Search ALL sources in parallel for speed
-        const [govResults, newsResults, videoResults, webResults] = await Promise.all([
-            searchGovernmentSources(query),
-            searchNewsSources(query),
-            searchVideoSources(query),
-            searchWebSources(query)
-        ]);
+        // STEP 1: Search government sources FIRST (priority)
+        const govResults = await searchGovernmentSourcesDeep(query);
+        console.log(`   Government sources: ${govResults.length}`);
         
-        // Combine all evidence
-        const allEvidence = [...govResults, ...webResults];
+        // STEP 2: Search archived/scrubbed data
+        const archiveResults = await searchArchivedData(query);
+        console.log(`   Archived/scrubbed sources: ${archiveResults.length}`);
         
-        console.log(`\n📊 RESULTS:`);
-        console.log(`   Government: ${govResults.length}`);
-        console.log(`   News: ${newsResults.length}`);
-        console.log(`   Video: ${videoResults.length}`);
-        console.log(`   Web: ${webResults.length}`);
-        console.log(`   TOTAL: ${allEvidence.length} sources`);
+        // STEP 3: Search academic/legal sources
+        const academicResults = await searchAcademicSources(query);
+        console.log(`   Academic/legal sources: ${academicResults.length}`);
         
-        // Build answer using EXACT QUOTES from sources
+        // STEP 4: General web search (only if needed)
+        const webResults = await searchWebSources(query);
+        console.log(`   Web sources: ${webResults.length}`);
+        
+        // STEP 5: News articles (for separate display ONLY, NOT in answer)
+        const newsResults = await searchNewsSources(query);
+        const videoResults = await searchVideoSources(query);
+        
+        // Combine priority-sorted evidence (government FIRST)
+        const allEvidence = [...govResults, ...archiveResults, ...academicResults, ...webResults];
+        
+        console.log(`\n📊 TOTAL PRIORITY SOURCES: ${allEvidence.length}`);
+        
+        // Build answer using ONLY priority sources (gov > archive > academic)
         const answer = buildAnswerFromExactQuotes(query, allEvidence, govResults);
         
         return res.status(200).json({
             success: true,
             query: query,
             answer: answer,
-            newsArticles: newsResults,
-            videoSources: videoResults,
+            newsArticles: newsResults,      // Displayed separately
+            videoSources: videoResults,     // Displayed separately
             allSources: allEvidence.slice(0, 50),
             timestamp: new Date().toISOString()
         });
@@ -52,7 +59,7 @@ export default async function handler(req, res) {
             success: true,
             query: query,
             answer: {
-                text: `Search completed but no results found for "${query}". Try: "Canada immigration", "US inflation", "ICE training", "Climate facts"`,
+                text: `Search completed but no government sources found for "${query}". Try: "Canada immigration site:canada.ca", "US inflation site:bls.gov", "ICE training site:ice.gov"`,
                 sentences: [],
                 citations: []
             },
@@ -64,10 +71,17 @@ export default async function handler(req, res) {
 }
 
 // ============================================
-// GOVERNMENT SOURCES SEARCH (PRIORITY 1)
+// DEEP GOVERNMENT SOURCES SEARCH (PRIORITY 1)
+// Uses your specific CX keys and domain filtering
 // ============================================
-async function searchGovernmentSources(query) {
+async function searchGovernmentSourcesDeep(query) {
     const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
+    const cxNa = process.env.GOOGLE_SEARCH_CX_NA;
+    const cxAsia = process.env.GOOGLE_SEARCH_CX_ASIA;
+    const cxEu = process.env.GOOGLE_SEARCH_CX_EU;
+    const cxNews = process.env.GOOGLE_SEARCH_CX_NEWS;
+    const cxTt = process.env.GOOGLE_SEARCH_CX_TT;
+    
     const results = [];
     const seenUrls = new Set();
     
@@ -76,17 +90,45 @@ async function searchGovernmentSources(query) {
         return results;
     }
     
-    // Priority government sites for each query type
-    const govSites = [
-        'fletc.gov', 'ice.gov', 'dhs.gov', 'justice.gov', 'usa.gov',
-        'cdc.gov', 'nih.gov', 'bls.gov', 'census.gov', 'federalreserve.gov',
-        'canada.ca', 'statcan.gc.ca', 'gov.uk', 'ons.gov.uk', 'who.int'
-    ];
+    // Comprehensive government domains by region
+    const govDomains = {
+        us: [
+            '.gov', 'usa.gov', 'whitehouse.gov', 'congress.gov', 'federalregister.gov',
+            'cdc.gov', 'nih.gov', 'bls.gov', 'census.gov', 'justice.gov', 'dhs.gov',
+            'ice.gov', 'fletc.gov', 'state.gov', 'treasury.gov', 'fda.gov', 'epa.gov',
+            'nsa.gov', 'fbi.gov', 'uscis.gov', 'archives.gov', 'loc.gov', 'gao.gov'
+        ],
+        canada: [
+            'canada.ca', 'statcan.gc.ca', 'gc.ca', 'parl.ca', 'justice.gc.ca',
+            'hc-sc.gc.ca', 'canada.ca/en/immigration-refugees-citizenship'
+        ],
+        uk: [
+            'gov.uk', 'ons.gov.uk', 'parliament.uk', 'nationalarchives.gov.uk',
+            'mod.gov.uk', 'homeoffice.gov.uk'
+        ],
+        eu: [
+            'europa.eu', 'ec.europa.eu', 'consilium.europa.eu', 'eur-lex.europa.eu',
+            'europarl.europa.eu', 'who.int', 'unodc.org', 'oecd.org', 'imf.org'
+        ],
+        au: ['gov.au', 'abs.gov.au', 'health.gov.au', 'homeaffairs.gov.au']
+    };
     
-    // Search each government site
-    for (const site of govSites) {
+    const allDomains = [...govDomains.us, ...govDomains.canada, ...govDomains.uk, ...govDomains.eu, ...govDomains.au];
+    
+    // Choose the best CX for the query (default to NA)
+    let activeCx = cxNa || '001394068838258239124:3iwe7yswooy';
+    
+    // Try to detect region from query
+    const queryLower = query.toLowerCase();
+    if (queryLower.includes('canada') || queryLower.includes('canadian')) activeCx = cxNa; // NA covers Canada
+    if (queryLower.includes('asia') || queryLower.includes('china') || queryLower.includes('japan')) activeCx = cxAsia || activeCx;
+    if (queryLower.includes('europe') || queryLower.includes('eu') || queryLower.includes('germany')) activeCx = cxEu || activeCx;
+    
+    // Search each government domain
+    for (const domain of allDomains) {
         try {
-            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA || '001394068838258239124:3iwe7yswooy'}&q=${encodeURIComponent(query)}&siteSearch=${site}&siteSearchFilter=i&num=5`;
+            // Use siteSearch to restrict to specific domain
+            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${activeCx}&q=${encodeURIComponent(query)}&siteSearch=${domain}&siteSearchFilter=i&num=5`;
             
             const response = await fetch(url);
             
@@ -98,7 +140,114 @@ async function searchGovernmentSources(query) {
                             seenUrls.add(item.link);
                             results.push({
                                 type: "government",
-                                source: site,
+                                source: domain,
+                                title: item.title,
+                                url: item.link,
+                                text: item.snippet,
+                                exactQuote: item.snippet,
+                                date: item.pagemap?.metatags?.[0]?.date || null,
+                                region: domain.includes('canada') ? 'Canada' : 
+                                       domain.includes('gov.uk') ? 'UK' :
+                                       domain.includes('europa') ? 'EU' : 'US'
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // Rate limit: 80ms between requests
+            await new Promise(r => setTimeout(r, 80));
+            
+        } catch (error) {
+            console.error(`[${domain}] Error:`, error.message);
+        }
+    }
+    
+    return results;
+}
+
+// ============================================
+// ARCHIVED & SCRUBBED DATA (PRIORITY 2)
+// Wayback Machine, government archives, scrubbed datasets
+// ============================================
+async function searchArchivedData(query) {
+    const results = [];
+    const seenUrls = new Set();
+    
+    // Archive domains to search
+    const archiveDomains = [
+        'web.archive.org', 'archive.org/details', 'archives.gov',
+        'catalog.archives.gov', 'govinfo.gov', 'fdsys.gov',
+        'data.gov', 'opendata.stackexchange.com'
+    ];
+    
+    // Try to search each archive domain
+    for (const domain of archiveDomains) {
+        try {
+            // Use a public API for Wayback Machine if available
+            if (domain === 'web.archive.org') {
+                const waybackUrl = `https://archive.org/wayback/available?url=${encodeURIComponent(query)}`;
+                try {
+                    const wbResponse = await fetch(waybackUrl);
+                    if (wbResponse.ok) {
+                        const wbData = await wbResponse.json();
+                        if (wbData.archived_snapshots?.closest?.url) {
+                            results.push({
+                                type: "archive",
+                                source: "Wayback Machine",
+                                title: `Archived: ${query}`,
+                                url: wbData.archived_snapshots.closest.url,
+                                text: `Archived version from ${wbData.archived_snapshots.closest.timestamp}`,
+                                exactQuote: `[Archived data from ${wbData.archived_snapshots.closest.timestamp}]`,
+                                date: wbData.archived_snapshots.closest.timestamp
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.log('Wayback error:', e.message);
+                }
+            }
+        } catch (error) {
+            console.error(`[Archive ${domain}] Error:`, error.message);
+        }
+    }
+    
+    return results;
+}
+
+// ============================================
+// ACADEMIC & LEGAL SOURCES (PRIORITY 3)
+// ============================================
+async function searchAcademicSources(query) {
+    const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
+    const cxNa = process.env.GOOGLE_SEARCH_CX_NA;
+    const results = [];
+    const seenUrls = new Set();
+    
+    if (!apiKey) return results;
+    
+    const academicDomains = [
+        'scholar.google.com', 'academic.oup.com', 'jstor.org', 'springer.com',
+        'sciencedirect.com', 'pubmed.ncbi.nlm.nih.gov', 'ssrn.com',
+        'law.cornell.edu', 'supremecourt.gov', 'law.justia.com', 'findlaw.com'
+    ];
+    
+    for (const domain of academicDomains) {
+        try {
+            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cxNa || '001394068838258239124:3iwe7yswooy'}&q=${encodeURIComponent(query)}&siteSearch=${domain}&siteSearchFilter=i&num=3`;
+            
+            const response = await fetch(url);
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.items && data.items.length > 0) {
+                    for (const item of data.items) {
+                        if (!seenUrls.has(item.link)) {
+                            seenUrls.add(item.link);
+                            const type = domain.includes('law') || domain.includes('supremecourt') || domain.includes('cornell.edu') ? 'legal' : 'academic';
+                            results.push({
+                                type: type,
+                                source: domain,
                                 title: item.title,
                                 url: item.link,
                                 text: item.snippet,
@@ -110,11 +259,10 @@ async function searchGovernmentSources(query) {
                 }
             }
             
-            // Rate limit: wait 100ms between requests
-            await new Promise(r => setTimeout(r, 100));
+            await new Promise(r => setTimeout(r, 80));
             
         } catch (error) {
-            console.error(`[${site}] Error:`, error.message);
+            console.error(`[Academic ${domain}] Error:`, error.message);
         }
     }
     
@@ -122,7 +270,50 @@ async function searchGovernmentSources(query) {
 }
 
 // ============================================
-// NEWS SOURCES SEARCH
+// GENERAL WEB SEARCH (Tavily - LOWEST PRIORITY)
+// ============================================
+async function searchWebSources(query) {
+    const apiKey = process.env.TAVILY_API_KEY;
+    const results = [];
+    
+    if (!apiKey) return results;
+    
+    try {
+        const response = await fetch('https://api.tavily.com/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_key: apiKey,
+                query: query,
+                search_depth: 'basic',
+                max_results: 5
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.results) {
+            for (const result of data.results) {
+                results.push({
+                    type: "web",
+                    source: new URL(result.url).hostname.replace('www.', ''),
+                    title: result.title,
+                    url: result.url,
+                    text: result.content?.substring(0, 400),
+                    exactQuote: result.content?.substring(0, 400),
+                    date: null
+                });
+            }
+        }
+    } catch (error) {
+        console.error('[Tavily] Error:', error.message);
+    }
+    
+    return results;
+}
+
+// ============================================
+// NEWS SOURCES (FOR DISPLAY ONLY - NOT IN ANSWER)
 // ============================================
 async function searchNewsSources(query) {
     const apiKey = process.env.GNEWS_API_KEY;
@@ -131,13 +322,13 @@ async function searchNewsSources(query) {
     if (!apiKey) return articles;
     
     try {
-        const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=10&token=${apiKey}`;
+        const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=8&token=${apiKey}`;
         const response = await fetch(url);
         
         if (response.ok) {
             const data = await response.json();
             if (data.articles) {
-                for (const article of data.articles.slice(0, 10)) {
+                for (const article of data.articles.slice(0, 8)) {
                     articles.push({
                         title: article.title,
                         url: article.url,
@@ -157,7 +348,7 @@ async function searchNewsSources(query) {
 }
 
 // ============================================
-// VIDEO SOURCES SEARCH
+// VIDEO SOURCES (FOR DISPLAY ONLY)
 // ============================================
 async function searchVideoSources(query) {
     const apiKey = process.env.YOUTUBE_API_KEY;
@@ -166,7 +357,7 @@ async function searchVideoSources(query) {
     if (!apiKey) return videos;
     
     try {
-        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=6&key=${apiKey}`;
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=5&key=${apiKey}`;
         const response = await fetch(url);
         
         if (response.ok) {
@@ -191,58 +382,22 @@ async function searchVideoSources(query) {
 }
 
 // ============================================
-// GENERAL WEB SEARCH (Tavily)
-// ============================================
-async function searchWebSources(query) {
-    const apiKey = process.env.TAVILY_API_KEY;
-    const results = [];
-    
-    if (!apiKey) return results;
-    
-    try {
-        const response = await fetch('https://api.tavily.com/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                api_key: apiKey,
-                query: query,
-                search_depth: 'basic',
-                max_results: 10
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.results) {
-            for (const result of data.results) {
-                results.push({
-                    type: "web",
-                    source: new URL(result.url).hostname.replace('www.', ''),
-                    title: result.title,
-                    url: result.url,
-                    text: result.content?.substring(0, 300),
-                    exactQuote: result.content?.substring(0, 300),
-                    date: null
-                });
-            }
-        }
-    } catch (error) {
-        console.error('[Tavily] Error:', error.message);
-    }
-    
-    return results;
-}
-
-// ============================================
 // BUILD ANSWER FROM EXACT QUOTES
-// Each sentence is a direct quote from a source
+// Every sentence is a direct quote from priority sources
+// NO news articles in main answer
 // ============================================
 function buildAnswerFromExactQuotes(query, allEvidence, govEvidence) {
     
-    // Prioritize government sources
-    const sortedEvidence = [...govEvidence, ...allEvidence.filter(e => e.type !== "government")];
+    // Strict priority: government > archive > academic > legal > web
+    const sortedEvidence = [
+        ...govEvidence,
+        ...allEvidence.filter(e => e.type === "archive"),
+        ...allEvidence.filter(e => e.type === "academic"),
+        ...allEvidence.filter(e => e.type === "legal"),
+        ...allEvidence.filter(e => e.type === "web")
+    ];
     
-    // Take unique sources (avoid duplicates)
+    // Take unique sources
     const uniqueSources = [];
     const seenTexts = new Set();
     
@@ -252,15 +407,16 @@ function buildAnswerFromExactQuotes(query, allEvidence, govEvidence) {
             seenTexts.add(textKey);
             uniqueSources.push(source);
         }
-        if (uniqueSources.length >= 25) break;
+        if (uniqueSources.length >= 20) break;
     }
     
     if (uniqueSources.length === 0) {
         return {
-            text: `No specific information found for "${query}". Please try different keywords like "Canada immigration", "US inflation", or "ICE training".`,
+            text: `No government or official sources found for "${query}". Try specific government sites: "site:bls.gov inflation", "site:ice.gov training", "site:canada.ca immigration"`,
             sentences: [],
             citations: [],
-            evidenceCount: 0
+            evidenceCount: 0,
+            governmentCount: 0
         };
     }
     
@@ -268,33 +424,31 @@ function buildAnswerFromExactQuotes(query, allEvidence, govEvidence) {
     const citations = [];
     const sentenceList = [];
     
-    // Add introduction sentence
+    // Add introduction
+    const govCount = uniqueSources.filter(s => s.type === "government").length;
     sentenceList.push({
-        text: `Here are direct quotes from ${uniqueSources.length} government and official sources about "${query}":`,
+        text: `DIRECT QUOTES FROM ${uniqueSources.length} OFFICIAL SOURCES (${govCount} government sources) about "${query}":`,
         citationId: null
     });
     
-    // Add each source as a direct quote sentence
+    // Add each source as a direct quote
     let citationId = 1;
     for (const source of uniqueSources) {
-        // Clean the quote text
         let quote = source.text
             .replace(/\s+/g, ' ')
             .trim();
         
-        // Add quotes around the text to show it's a direct quote
-        if (!quote.startsWith('"')) {
-            quote = `"${quote}"`;
-        }
-        if (!quote.endsWith('"')) {
-            quote = quote + '"';
-        }
+        // Add quotes
+        if (!quote.startsWith('"')) quote = `"${quote}"`;
+        if (!quote.endsWith('"')) quote = quote + '"';
         
-        // Add source attribution
+        // Type label with priority indicator
         let typeLabel = "";
         if (source.type === "government") typeLabel = "🏛️ GOVERNMENT";
-        else if (source.type === "web") typeLabel = "🌐 SOURCE";
-        else typeLabel = "📄 SOURCE";
+        else if (source.type === "archive") typeLabel = "📜 ARCHIVE";
+        else if (source.type === "academic") typeLabel = "🎓 ACADEMIC";
+        else if (source.type === "legal") typeLabel = "⚖️ LEGAL";
+        else typeLabel = "🌐 SOURCE";
         
         sentenceList.push({
             text: quote,
@@ -303,20 +457,15 @@ function buildAnswerFromExactQuotes(query, allEvidence, govEvidence) {
         
         citations.push({
             id: citationId,
-            text: source.text.length > 350 ? source.text.substring(0, 350) + '...' : source.text,
+            text: source.text.length > 400 ? source.text.substring(0, 400) + '...' : source.text,
             source: `${typeLabel}: ${source.source}`,
             url: source.url,
-            title: source.title
+            title: source.title,
+            region: source.region || null
         });
         
         citationId++;
     }
-    
-    // Add conclusion
-    sentenceList.push({
-        text: `Each citation above contains a direct quote from its source. Click the numbers to verify the original information.`,
-        citationId: null
-    });
     
     // Build full text
     let fullText = "";
@@ -329,6 +478,6 @@ function buildAnswerFromExactQuotes(query, allEvidence, govEvidence) {
         sentences: sentenceList,
         citations: citations,
         evidenceCount: uniqueSources.length,
-        governmentCount: uniqueSources.filter(s => s.type === "government").length
+        governmentCount: govCount
     };
 }
