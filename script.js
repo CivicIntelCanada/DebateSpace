@@ -1,5 +1,6 @@
 // ============================================
 // DEBATESPACE - EVERY SENTENCE CITED DISPLAY
+// (YOUR ORIGINAL WORKING CODE - DO NOT CHANGE)
 // ============================================
 
 async function searchDebate() {
@@ -47,11 +48,15 @@ function renderResults(data, query) {
         // If we have sentence-level citations, use them
         if (answer.sentences && answer.sentences.length > 0) {
             for (const sentence of answer.sentences) {
-                const citation = answer.citations.find(c => c.id === sentence.citationId);
-                if (citation) {
-                    formattedHtml += `<span class="sentence-with-citation">${sentence.text}<a href="${citation.url}" target="_blank" class="citation-superscript" title="Source: ${citation.source}">[${sentence.citationId}]</a></span> `;
+                if (sentence.citationId) {
+                    const citation = answer.citations.find(c => c.id === sentence.citationId);
+                    if (citation) {
+                        formattedHtml += `<span class="sentence-with-citation">${sentence.text}<a href="${citation.url}" target="_blank" class="citation-superscript" title="Source: ${citation.source}">[${sentence.citationId}]</a></span> `;
+                    } else {
+                        formattedHtml += `${sentence.text} `;
+                    }
                 } else {
-                    formattedHtml += `${sentence.text} `;
+                    formattedHtml += `<span class="sentence-intro">${sentence.text}</span> `;
                 }
             }
         } else {
