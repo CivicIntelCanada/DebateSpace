@@ -1,7 +1,5 @@
 // ============================================
-// DEBATESPACE - PURE DISCOVERY RESEARCH WITH AI ANALYSIS
-// Original research code preserved exactly
-// Added: AI Analysis section that reviews the research findings
+// DEBATESPACE - DISCOVERY RESEARCH WITH AI ANALYSIS
 // ============================================
 
 export default async function handler(req, res) {
@@ -12,15 +10,17 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'No query provided' });
     }
     
-    console.log(`\n🔍 DISCOVERY RESEARCH: "${query}"`);
-    console.log(`⏰ Time: ${new Date().toISOString()}`);
+    console.log(`\n🔍 RESEARCH: "${query}"`);
     
     try {
         const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
         
         // ========================================
-        // STEP 1: SEARCH ALL 5 CX ENGINES (Priority #1)
+        // SEARCH ALL SOURCES
         // ========================================
+        let allResults = [];
+        
+        // CX Engines
         const cxEngines = [
             { name: 'North America', cx: process.env.GOOGLE_SEARCH_CX_NA },
             { name: 'Asia Pacific', cx: process.env.GOOGLE_SEARCH_CX_ASIA },
@@ -29,47 +29,31 @@ export default async function handler(req, res) {
             { name: 'News', cx: process.env.GOOGLE_SEARCH_CX_NEWS }
         ];
         
-        let allResults = [];
-        
-        // Search all CX engines
         for (const engine of cxEngines) {
             if (apiKey && engine.cx) {
-                const results = await searchCXEngine(apiKey, engine.cx, query);
+                const results = await searchCX(apiKey, engine.cx, query);
                 allResults.push(...results);
-                console.log(`${engine.name}: ${results.length} results`);
             }
         }
         
-        // ========================================
-        // STEP 2: SEARCH GOVERNMENT DOMAINS (Priority #2)
-        // ========================================
-        const govDomains = ['.gov', '.gc.ca', '.gov.uk', '.mil', '.europa.eu'];
-        
+        // Government domains
+        const govDomains = ['.gov', '.gc.ca', '.gov.uk', '.mil'];
         for (const domain of govDomains) {
             if (apiKey) {
-                const results = await searchGovernmentDomain(apiKey, domain, query);
+                const results = await searchGovDomain(apiKey, domain, query);
                 allResults.push(...results);
-                console.log(`${domain}: ${results.length} results`);
             }
         }
         
-        // ========================================
-        // STEP 3: SEARCH ARCHIVES (Historical/scrubbed data)
-        // ========================================
+        // Archives
         const archiveResults = await searchArchives(query);
         allResults.push(...archiveResults);
-        console.log(`Archives: ${archiveResults.length} results`);
         
-        // ========================================
-        // STEP 4: GENERAL WEB (Tavily - lowest priority)
-        // ========================================
+        // Tavily
         const tavilyResults = await tavilySearch(query);
         allResults.push(...tavilyResults);
-        console.log(`Tavily: ${tavilyResults.length} results`);
         
-        // ========================================
-        // REMOVE DUPLICATES
-        // ========================================
+        // Remove duplicates
         const uniqueResults = [];
         const seenUrls = new Set();
         for (const result of allResults) {
@@ -79,19 +63,17 @@ export default async function handler(req, res) {
             }
         }
         
-        console.log(`\n📊 TOTAL: ${uniqueResults.length} unique sources`);
-        console.log(`   Government: ${uniqueResults.filter(r => r.isGovernment).length}`);
-        console.log(`   Archives: ${uniqueResults.filter(r => r.type === 'archive').length}`);
+        console.log(`Total sources: ${uniqueResults.length}`);
         
         // ========================================
-        // BUILD ANSWER WITH CITATIONS (Original)
+        // BUILD RESEARCH ANSWER (Citations)
         // ========================================
-        const researchAnswer = buildAnswerWithCitations(query, uniqueResults);
+        const researchAnswer = buildResearchAnswer(query, uniqueResults);
         
         // ========================================
-        // NEW: AI ANALYSIS OF THE RESEARCH FINDINGS
+        // GENERATE AI ANALYSIS (Based ONLY on research)
         // ========================================
-        const aiAnalysis = await generateAIAnalysis(query, uniqueResults, researchAnswer);
+        const aiAnalysis = await generateAIAnalysis(query, uniqueResults);
         
         // ========================================
         // GET SUPPLEMENTAL CONTENT
@@ -102,29 +84,21 @@ export default async function handler(req, res) {
         return res.status(200).json({
             success: true,
             query: query,
-            research: researchAnswer,      // Original research with citations
-            aiAnalysis: aiAnalysis,         // NEW: AI analysis of the research
+            research: researchAnswer,
+            aiAnalysis: aiAnalysis,
             newsArticles: newsResults,
             videoSources: videoResults,
-            allSources: uniqueResults.slice(0, 50),
+            allSources: uniqueResults.slice(0, 40),
             timestamp: new Date().toISOString()
         });
         
     } catch (error) {
-        console.error('FATAL ERROR:', error);
+        console.error('ERROR:', error);
         return res.status(200).json({
             success: true,
             query: query,
-            research: {
-                text: `Search completed. Found sources about "${query}". Please review the sources below.`,
-                sentences: [],
-                citations: [],
-                evidenceCount: 0
-            },
-            aiAnalysis: {
-                text: `Unable to generate analysis at this time. Please review the research sources below.`,
-                sourcesUsed: 0
-            },
+            research: { text: `Research completed. Found sources about "${query}".`, citations: [], evidenceCount: 0 },
+            aiAnalysis: { text: `Analysis unavailable. Please review the research sources below.`, sourcesUsed: 0 },
             newsArticles: [],
             videoSources: [],
             allSources: []
@@ -133,155 +107,39 @@ export default async function handler(req, res) {
 }
 
 // ============================================
-// NEW: GENERATE AI ANALYSIS FROM RESEARCH FINDINGS
+// SEARCH FUNCTIONS
 // ============================================
-async function generateAIAnalysis(query, sources, researchAnswer) {
-    const groqKey = process.env.GROQ_API_KEY;
-    
-    // If no Groq key or no sources, return fallback
-    if (!groqKey || sources.length === 0) {
-        return {
-            text: `Based on ${sources.length} sources, the research findings are presented in the citations above. Please review the source materials for detailed information.`,
-            sourcesUsed: sources.length,
-            modelUsed: groqKey ? "Groq AI" : "No AI available"
-        };
-    }
-    
-    // Prepare the research data for AI analysis
-    const topSources = sources.slice(0, 15);
-    const sourceTexts = [];
-    
-    for (const source of topSources) {
-        let quote = source.snippet || source.title || '';
-        quote = quote.replace(/\s+/g, ' ').trim();
-        if (quote.length > 50) {
-            sourceTexts.push(`[${source.source}]: ${quote.substring(0, 400)}`);
-        }
-    }
-    
-    const researchSummary = researchAnswer.text || `Found ${sources.length} sources about "${query}".`;
-    
+async function searchCX(apiKey, cx, query) {
+    const results = [];
     try {
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${groqKey}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: 'llama-3.3-70b-versatile',
-                messages: [
-                    {
-                        role: 'system',
-                        content: `You are an objective research analyst. Your ONLY job is to analyze the provided research sources and summarize what they say.
-
-STRICT RULES:
-1. ONLY use information from the provided sources
-2. DO NOT add any outside knowledge or opinions
-3. DO NOT make assumptions beyond what the sources state
-4. Be neutral and factual
-5. If sources disagree, note the disagreement
-6. Keep your analysis concise (200-300 words)
-7. DO NOT include phrases like "based on the sources" or "according to the sources" - just state the facts
-
-Your analysis should be a clear, direct answer to the user's question based SOLELY on the research provided.`
-                    },
-                    {
-                        role: 'user',
-                        content: `User Question: ${query}
-
-Research Sources Found:
-${sourceTexts.join('\n\n')}
-
-Overall Research Summary: ${researchSummary}
-
-Based ONLY on these research sources, provide a clear answer to the user's question.`
-                    }
-                ],
-                temperature: 0.1,
-                max_tokens: 600
-            })
-        });
-        
+        const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&num=8`;
+        const response = await fetch(url);
         if (response.ok) {
             const data = await response.json();
-            const analysis = data.choices?.[0]?.message?.content || `Based on ${sources.length} sources, the research findings are presented in the citations above.`;
-            
-            return {
-                text: analysis,
-                sourcesUsed: sources.length,
-                modelUsed: "Groq Llama 3.3 (70B)",
-                disclaimer: "AI analysis based solely on the research sources above"
-            };
-        } else {
-            return {
-                text: `Analysis unavailable. Please review the ${sources.length} research sources above for information about "${query}".`,
-                sourcesUsed: sources.length,
-                modelUsed: "Error - using fallback"
-            };
-        }
-        
-    } catch (error) {
-        console.error('AI Analysis error:', error.message);
-        return {
-            text: `Unable to generate AI analysis. Please review the ${sources.length} research sources above.`,
-            sourcesUsed: sources.length,
-            modelUsed: "Error - using fallback"
-        };
-    }
-}
-
-// ============================================
-// SEARCH A CX ENGINE (UNCHANGED)
-// ============================================
-async function searchCXEngine(apiKey, cx, query) {
-    const results = [];
-    const searchTerms = [query, `${query} official data`, `${query} report`, `${query} statistics`];
-    
-    for (const term of searchTerms.slice(0, 3)) {
-        try {
-            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(term)}&num=10`;
-            const response = await fetch(url);
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.items) {
-                    for (const item of data.items) {
-                        const isGov = item.link.includes('.gov') || item.link.includes('.gc.ca') || item.link.includes('.mil');
-                        results.push({
-                            type: "cx",
-                            source: new URL(item.link).hostname.replace('www.', ''),
-                            title: item.title,
-                            url: item.link,
-                            snippet: item.snippet,
-                            isGovernment: isGov,
-                            searchTerm: term
-                        });
-                    }
+            if (data.items) {
+                for (const item of data.items) {
+                    results.push({
+                        type: "cx",
+                        source: new URL(item.link).hostname.replace('www.', ''),
+                        title: item.title,
+                        url: item.link,
+                        snippet: item.snippet,
+                        isGovernment: item.link.includes('.gov') || item.link.includes('.gc.ca')
+                    });
                 }
             }
-            await new Promise(r => setTimeout(r, 100));
-        } catch (error) {
-            console.error(`CX search error:`, error.message);
         }
-    }
-    
+    } catch (error) {}
     return results;
 }
 
-// ============================================
-// SEARCH GOVERNMENT DOMAINS (UNCHANGED)
-// ============================================
-async function searchGovernmentDomain(apiKey, domain, query) {
+async function searchGovDomain(apiKey, domain, query) {
     const results = [];
     const cx = process.env.GOOGLE_SEARCH_CX_NA;
-    
     if (!cx) return results;
-    
     try {
-        const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&siteSearch=${domain}&siteSearchFilter=i&num=8`;
+        const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&siteSearch=${domain}&siteSearchFilter=i&num=6`;
         const response = await fetch(url);
-        
         if (response.ok) {
             const data = await response.json();
             if (data.items) {
@@ -297,30 +155,20 @@ async function searchGovernmentDomain(apiKey, domain, query) {
                 }
             }
         }
-    } catch (error) {
-        console.error(`Domain search ${domain} error:`, error.message);
-    }
-    
+    } catch (error) {}
     return results;
 }
 
-// ============================================
-// SEARCH ARCHIVES (UNCHANGED)
-// ============================================
 async function searchArchives(query) {
     const results = [];
     const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
     const cx = process.env.GOOGLE_SEARCH_CX_NA;
-    
     if (!apiKey || !cx) return results;
-    
-    const archives = ['archive.org', 'archives.gov', 'census.gov', 'data.gov', 'federalregister.gov'];
-    
+    const archives = ['archive.org', 'archives.gov', 'census.gov', 'data.gov'];
     for (const archive of archives) {
         try {
-            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&siteSearch=${archive}&siteSearchFilter=i&num=5`;
+            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&siteSearch=${archive}&siteSearchFilter=i&num=4`;
             const response = await fetch(url);
-            
             if (response.ok) {
                 const data = await response.json();
                 if (data.items) {
@@ -336,71 +184,46 @@ async function searchArchives(query) {
                     }
                 }
             }
-            await new Promise(r => setTimeout(r, 50));
-        } catch (error) {
-            console.error(`Archive ${archive} error:`, error.message);
-        }
+        } catch (error) {}
     }
-    
     return results;
 }
 
-// ============================================
-// TAVILY SEARCH (UNCHANGED)
-// ============================================
 async function tavilySearch(query) {
     const apiKey = process.env.TAVILY_API_KEY;
     const results = [];
-    
     if (!apiKey) return results;
-    
     try {
         const response = await fetch('https://api.tavily.com/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                api_key: apiKey,
-                query: query,
-                search_depth: 'advanced',
-                max_results: 10
-            })
+            body: JSON.stringify({ api_key: apiKey, query: query, search_depth: 'advanced', max_results: 8 })
         });
-        
         if (response.ok) {
             const data = await response.json();
             if (data.results) {
                 for (const result of data.results) {
-                    const isGov = result.url.includes('.gov') || result.url.includes('.gc.ca');
                     results.push({
                         type: "web",
                         source: new URL(result.url).hostname.replace('www.', ''),
                         title: result.title,
                         url: result.url,
                         snippet: result.content?.substring(0, 400),
-                        isGovernment: isGov
+                        isGovernment: result.url.includes('.gov')
                     });
                 }
             }
         }
-    } catch (error) {
-        console.error('Tavily error:', error.message);
-    }
-    
+    } catch (error) {}
     return results;
 }
 
-// ============================================
-// GET NEWS (UNCHANGED)
-// ============================================
 async function getNews(query) {
     const apiKey = process.env.GNEWS_API_KEY;
-    
     if (!apiKey) return [];
-    
     try {
-        const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=8&token=${apiKey}`;
+        const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=6&token=${apiKey}`;
         const response = await fetch(url);
-        
         if (response.ok) {
             const data = await response.json();
             if (data.articles) {
@@ -413,25 +236,16 @@ async function getNews(query) {
                 }));
             }
         }
-    } catch (error) {
-        console.error('News error:', error.message);
-    }
-    
+    } catch (error) {}
     return [];
 }
 
-// ============================================
-// GET VIDEOS (UNCHANGED)
-// ============================================
 async function getVideos(query) {
     const apiKey = process.env.YOUTUBE_API_KEY;
-    
     if (!apiKey) return [];
-    
     try {
         const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=5&key=${apiKey}`;
         const response = await fetch(url);
-        
         if (response.ok) {
             const data = await response.json();
             if (data.items) {
@@ -443,87 +257,159 @@ async function getVideos(query) {
                 }));
             }
         }
-    } catch (error) {
-        console.error('Video error:', error.message);
-    }
-    
+    } catch (error) {}
     return [];
 }
 
 // ============================================
-// BUILD ANSWER WITH CITATIONS (UNCHANGED)
+// BUILD RESEARCH ANSWER (Citations only)
 // ============================================
-function buildAnswerWithCitations(query, sources) {
+function buildResearchAnswer(query, sources) {
     const govSources = sources.filter(s => s.isGovernment === true);
     const otherSources = sources.filter(s => !s.isGovernment);
     const sortedSources = [...govSources, ...otherSources];
     
     if (sortedSources.length === 0) {
         return {
-            text: `No sources found for "${query}". Try different keywords like "${query} statistics" or "${query} government data".`,
-            sentences: [],
+            text: `No sources found for "${query}". Try different keywords.`,
             citations: [],
-            evidenceCount: 0
+            evidenceCount: 0,
+            governmentCount: 0
         };
     }
     
     const citations = [];
-    const sentences = [];
     let citationId = 1;
+    let fullText = `Found ${sortedSources.length} sources (${govSources.length} government sources) about "${query}": `;
     
-    sentences.push({
-        text: `Found ${sortedSources.length} sources (${govSources.length} government sources) about "${query}":`,
-        citationId: null
-    });
-    
-    for (const source of sortedSources.slice(0, 20)) {
+    for (const source of sortedSources.slice(0, 15)) {
         let quote = source.snippet || source.title || '';
         quote = quote.replace(/\s+/g, ' ').trim();
         
-        if (quote.length > 50 && 
-            !quote.toLowerCase().includes('search') && 
-            !quote.toLowerCase().includes('loading') &&
-            !quote.toLowerCase().includes('menu')) {
-            
+        if (quote.length > 40 && !quote.toLowerCase().includes('search')) {
             const typeLabel = source.isGovernment ? "🏛️ GOVERNMENT" : "📄 SOURCE";
             
-            sentences.push({
-                text: quote.substring(0, 350),
-                citationId: citationId
-            });
+            fullText += `"${quote.substring(0, 300)}" [${citationId}] `;
             
             citations.push({
                 id: citationId,
-                text: quote.length > 450 ? quote.substring(0, 450) + '...' : quote,
+                text: quote.length > 400 ? quote.substring(0, 400) + '...' : quote,
                 source: `${typeLabel}: ${source.source}`,
-                url: source.url,
-                title: source.title
+                url: source.url
             });
-            
             citationId++;
         }
     }
     
-    sentences.push({
-        text: `Click any [number] to verify the original source. Each citation contains a direct quote from the source document.`,
-        citationId: null
-    });
-    
-    let fullText = "";
-    for (let i = 0; i < sentences.length; i++) {
-        const sentence = sentences[i];
-        fullText += sentence.text;
-        if (sentence.citationId) {
-            fullText += ` [${sentence.citationId}]`;
-        }
-        fullText += " ";
-    }
+    fullText += ` Click any [number] to verify the source.`;
     
     return {
         text: fullText,
-        sentences: sentences,
         citations: citations,
         evidenceCount: sortedSources.length,
         governmentCount: govSources.length
     };
+}
+
+// ============================================
+// GENERATE AI ANALYSIS (Based ONLY on research)
+// ============================================
+async function generateAIAnalysis(query, sources) {
+    const groqKey = process.env.GROQ_API_KEY;
+    
+    // Fallback if no Groq key
+    if (!groqKey) {
+        return {
+            text: `AI analysis unavailable. Please review the ${sources.length} research sources above for information about "${query}".`,
+            sourcesUsed: sources.length,
+            modelUsed: "Groq API key not configured"
+        };
+    }
+    
+    // No sources found
+    if (sources.length === 0) {
+        return {
+            text: `No research sources were found for "${query}". Please try different keywords or check your search terms.`,
+            sourcesUsed: 0,
+            modelUsed: "No sources to analyze"
+        };
+    }
+    
+    // Prepare source text for AI (limit to 15 most relevant)
+    const topSources = sources.slice(0, 15);
+    const sourceTexts = [];
+    
+    for (const source of topSources) {
+        let content = source.snippet || source.title || '';
+        content = content.replace(/\s+/g, ' ').trim();
+        if (content.length > 50) {
+            const sourceLabel = source.isGovernment ? `[GOVERNMENT: ${source.source}]` : `[SOURCE: ${source.source}]`;
+            sourceTexts.push(`${sourceLabel} ${content.substring(0, 350)}`);
+        }
+    }
+    
+    try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${groqKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    {
+                        role: 'system',
+                        content: `You are a neutral research analyst. Your ONLY job is to summarize what the provided research sources say.
+
+STRICT RULES:
+1. ONLY use information from the provided sources
+2. DO NOT add any outside knowledge, opinions, or assumptions
+3. DO NOT use phrases like "based on the sources" or "according to the research"
+4. Be neutral and factual
+5. If sources disagree, state both sides
+6. Keep your answer concise (150-250 words)
+7. Answer the user's question directly using ONLY the source material provided`
+                    },
+                    {
+                        role: 'user',
+                        content: `User Question: ${query}
+
+Research Sources Found (${sourceTexts.length} sources):
+${sourceTexts.join('\n\n')}
+
+Based ONLY on the research sources above, provide a clear answer to the user's question.`
+                    }
+                ],
+                temperature: 0.1,
+                max_tokens: 500
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            const analysis = data.choices?.[0]?.message?.content || `Based on ${sources.length} sources, the research findings are presented above.`;
+            
+            return {
+                text: analysis,
+                sourcesUsed: sources.length,
+                modelUsed: "Groq Llama 3.3",
+                disclaimer: "Analysis based solely on the research sources above"
+            };
+        } else {
+            return {
+                text: `AI analysis temporarily unavailable. Please review the ${sources.length} research sources above for information about "${query}".`,
+                sourcesUsed: sources.length,
+                modelUsed: "API error - using fallback"
+            };
+        }
+        
+    } catch (error) {
+        console.error('AI Analysis error:', error.message);
+        return {
+            text: `AI analysis unavailable. Please review the ${sources.length} research sources above for information about "${query}".`,
+            sourcesUsed: sources.length,
+            modelUsed: "Error - using fallback"
+        };
+    }
 }
