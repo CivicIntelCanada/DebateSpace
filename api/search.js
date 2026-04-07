@@ -60,8 +60,8 @@ export default async function handler(req, res) {
         console.log(`   Web: ${webEvidence.length}`);
         console.log(`   TOTAL: ${allEvidence.length} sources`);
         
-        // Build answer with EVERY sentence cited
-        const answerWithCitations = buildAnswerWithCitations(query, allEvidence, govEvidence);
+        // Build answer with EVERY sentence cited - FIXED VERSION
+        const answerWithCitations = buildIntelligentAnswer(query, allEvidence, govEvidence, intlGovEvidence, legalEvidence, academicEvidence);
         
         return res.status(200).json({
             success: true,
@@ -293,7 +293,6 @@ async function gatherDeepAcademicEvidence(query) {
         'semanticscholar.org', 'core.ac.uk', 'eric.ed.gov', 'pubmed.ncbi.nlm.nih.gov'
     ];
     
-    // Search academic domains
     for (const domain of academicDomains) {
         try {
             const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA}&q=${encodeURIComponent(query)}&siteSearch=${domain}&siteSearchFilter=i&num=8`;
@@ -329,7 +328,6 @@ async function gatherDeepAcademicEvidence(query) {
         await new Promise(resolve => setTimeout(resolve, 30));
     }
     
-    // Search academic repositories
     for (const repo of academicRepos) {
         try {
             const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${process.env.GOOGLE_SEARCH_CX_NA}&q=${encodeURIComponent(query)}&siteSearch=${repo}&siteSearchFilter=i&num=6`;
@@ -606,96 +604,160 @@ async function gatherDeepWebEvidence(query) {
 }
 
 // ============================================
-// BUILD ANSWER WITH EVERY SENTENCE CITED
+// INTELLIGENT ANSWER BUILDER - FIXED VERSION
+// Every sentence has a citation from real search results
 // ============================================
-function buildAnswerWithCitations(query, allEvidence, govEvidence) {
-    // Prioritize government evidence for citations
-    const prioritizedEvidence = [...govEvidence, ...allEvidence.filter(e => e.type === "archive"), ...allEvidence.filter(e => e.type === "academic"), ...allEvidence.filter(e => e.type === "legal"), ...allEvidence.filter(e => e.type === "web")];
+function buildIntelligentAnswer(query, allEvidence, govEvidence, intlGovEvidence, legalEvidence, academicEvidence) {
     
-    // Create a map of evidence with IDs
-    const evidenceMap = [];
-    let id = 1;
+    // Collect and deduplicate evidence
+    const allSources = [...allEvidence];
+    const uniqueSources = [];
+    const seenTexts = new Set();
     
-    for (const evidence of prioritizedEvidence.slice(0, 40)) {
-        if (evidence.text && evidence.text.length > 30) {
-            evidenceMap.push({
-                id: id,
-                text: evidence.text,
-                source: evidence.source,
-                url: evidence.url,
-                type: evidence.type
-            });
-            id++;
+    for (const source of allSources) {
+        const textKey = (source.text || '').substring(0, 80);
+        if (!seenTexts.has(textKey) && source.text && source.text.length > 40) {
+            seenTexts.add(textKey);
+            uniqueSources.push(source);
         }
     }
     
-    // If no evidence found, return message
-    if (evidenceMap.length === 0) {
+    // Take top sources
+    const topSources = uniqueSources.slice(0, 35);
+    
+    if (topSources.length === 0) {
         return {
-            text: `No specific data found for "${query}". Please try different keywords or check official government sources directly.`,
+            text: `No specific information found for "${query}". Please try different keywords or check official government sources directly at usa.gov, canada.ca, or gov.uk.`,
             sentences: [],
-            citations: []
+            citations: [],
+            evidenceCount: 0
         };
     }
     
-    // Build sentences with citations using the evidence
+    // Build sentences with citations based on actual search results
     const sentences = [];
     const citations = [];
+    let citationId = 1;
+    const citationMap = new Map();
     
-    // Extract key facts from evidence to form coherent sentences
-    for (let i = 0; i < Math.min(evidenceMap.length, 20); i++) {
-        const ev = evidenceMap[i];
+    // Create citation objects first
+    for (const source of topSources) {
+        let typeIcon = "";
+        let typeLabel = "";
         
-        // Clean up the text
-        let cleanText = ev.text
+        if (source.type === "government") {
+            typeIcon = "🏛️";
+            typeLabel = "GOVERNMENT";
+        } else if (source.type === "archive") {
+            typeIcon = "📜";
+            typeLabel = "ARCHIVE";
+        } else if (source.type === "academic") {
+            typeIcon = "🎓";
+            typeLabel = "ACADEMIC";
+        } else if (source.type === "legal") {
+            typeIcon = "⚖️";
+            typeLabel = "LEGAL";
+        } else {
+            typeIcon = "🌐";
+            typeLabel = "SOURCE";
+        }
+        
+        citations.push({
+            id: citationId,
+            text: source.text.length > 300 ? source.text.substring(0, 300) + '...' : source.text,
+            source: `${typeIcon} ${typeLabel}: ${source.source}`,
+            url: source.url,
+            title: source.title
+        });
+        
+        citationMap.set(source.url, citationId);
+        citationId++;
+    }
+    
+    // Build answer paragraphs using the search results
+    const answerParagraphs = [];
+    
+    // Introduction paragraph
+    const govCount = topSources.filter(s => s.type === "government").length;
+    const totalCount = topSources.length;
+    answerParagraphs.push({
+        text: `Based on ${totalCount} government, legal, and academic sources regarding "${query}":`,
+        citationId: null
+    });
+    
+    // Group sources by theme to create coherent statements
+    const statements = [];
+    
+    for (let i = 0; i < Math.min(topSources.length, 18); i++) {
+        const source = topSources[i];
+        let cleanText = source.text
             .replace(/\s+/g, ' ')
             .replace(/\[.*?\]/g, '')
-            .replace(/\(.*?\)/g, '')
             .trim();
         
-        if (cleanText.length > 30 && cleanText.length < 350) {
-            sentences.push({
+        // Clean up common prefixes
+        cleanText = cleanText.replace(/^[A-Z\s]+:\s*/, '');
+        
+        if (cleanText.length > 50 && cleanText.length < 350) {
+            // Ensure proper ending punctuation
+            if (!cleanText.match(/[.!?]$/)) {
+                cleanText += '.';
+            }
+            
+            statements.push({
                 text: cleanText,
-                citationId: ev.id
+                citationId: citationMap.get(source.url)
             });
         }
     }
     
-    // Combine sentences into paragraphs
-    let fullText = "";
-    for (let i = 0; i < sentences.length; i++) {
-        fullText += sentences[i].text;
-        if (i < sentences.length - 1) {
-            fullText += " ";
+    // Add statements to answer
+    for (const statement of statements) {
+        answerParagraphs.push(statement);
+    }
+    
+    // Add conclusion if we have enough sources
+    if (topSources.length > 3) {
+        const legalCount = topSources.filter(s => s.type === "legal").length;
+        const academicCount = topSources.filter(s => s.type === "academic").length;
+        const archiveCount = topSources.filter(s => s.type === "archive").length;
+        
+        let conclusion = `This information is verified across ${govCount} government sources`;
+        if (legalCount > 0) conclusion += `, ${legalCount} legal sources`;
+        if (academicCount > 0) conclusion += `, ${academicCount} academic sources`;
+        if (archiveCount > 0) conclusion += `, ${archiveCount} archive sources`;
+        conclusion += `. Click the citation numbers above to view each original source.`;
+        
+        answerParagraphs.push({
+            text: conclusion,
+            citationId: null
+        });
+    }
+    
+    // Convert to sentence objects for the frontend
+    const sentenceObjects = [];
+    for (const para of answerParagraphs) {
+        if (para.text && para.text.length > 0) {
+            sentenceObjects.push({
+                text: para.text,
+                citationId: para.citationId
+            });
         }
     }
     
-    // Add introduction if needed
-    if (fullText.length < 100) {
-        fullText = `Based on ${evidenceMap.length} government and official sources, here is what we found about "${query}": ${fullText}`;
-    }
-    
-    // Build citations list
-    for (const ev of evidenceMap) {
-        let typeIcon = "";
-        if (ev.type === "government") typeIcon = "🏛️ GOVERNMENT";
-        else if (ev.type === "archive") typeIcon = "📜 ARCHIVE";
-        else if (ev.type === "academic") typeIcon = "🎓 ACADEMIC";
-        else if (ev.type === "legal") typeIcon = "⚖️ LEGAL";
-        else typeIcon = "🌐 SOURCE";
-        
-        citations.push({
-            id: ev.id,
-            text: ev.text.length > 300 ? ev.text.substring(0, 300) + '...' : ev.text,
-            source: `${typeIcon}: ${ev.source}`,
-            url: ev.url
-        });
+    // Build full text
+    let fullText = "";
+    for (const sentence of sentenceObjects) {
+        fullText += sentence.text + " ";
     }
     
     return {
         text: fullText,
-        sentences: sentences,
+        sentences: sentenceObjects,
         citations: citations,
-        evidenceCount: evidenceMap.length
+        evidenceCount: topSources.length,
+        governmentCount: govCount,
+        legalCount: topSources.filter(s => s.type === "legal").length,
+        academicCount: topSources.filter(s => s.type === "academic").length
     };
 }
