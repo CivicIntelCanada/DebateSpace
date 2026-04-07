@@ -472,4 +472,28 @@ const styles = `
     cursor: pointer;
     margin-top: 16px;
 }
-@media (max-width: 768px)
+@media (max-width: 768px) {
+    .research-card, .citations-section, .news-section, .video-section, .allsources-section { padding: 16px; }
+    .video-grid { grid-template-columns: 1fr; }
+    .stats-footer { gap: 10px; }
+    .citation-item { flex-direction: column; }
+    .citation-source { flex-direction: column; align-items: flex-start; }
+}
+</style>
+`;
+
+if (!document.querySelector('#debate-styles')) {
+    const styleTag = document.createElement('style');
+    styleTag.id = 'debate-styles';
+    styleTag.textContent = styles;
+    document.head.appendChild(styleTag);
+}
+
+window.searchDebate = searchDebate;
+window.setSearch = setSearch;
+
+document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') searchDebate();
+});
+
+console.log('DebateSpace loaded - Complete deep research with citations');
