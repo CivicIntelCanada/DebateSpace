@@ -1,5 +1,7 @@
 // ============================================
-// DEBATESPACE - DISPLAY WITH CITATIONS AFTER EVERY CLAIM
+// DEBATESPACE - DISPLAY WITH AI ANALYSIS SECTION
+// Original research display preserved
+// Added: AI Analysis of the research findings
 // ============================================
 
 async function searchDebate() {
@@ -44,7 +46,6 @@ function renderResults(data, query) {
         
         let formattedText = answer.text;
         
-        // Replace [X] with clickable links
         formattedText = formattedText.replace(/\[(\d+)\]/g, (match, num) => {
             const citation = answer.citations?.find(c => c.id == num);
             if (citation) {
@@ -53,7 +54,6 @@ function renderResults(data, query) {
             return match;
         });
         
-        // Convert line breaks to paragraphs
         const paragraphs = formattedText.split(/\n\n+/);
         return paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
     };
@@ -81,6 +81,26 @@ function renderResults(data, query) {
                             </div>
                         </div>
                     `).join('')}
+                </div>
+            </div>
+        `;
+    };
+    
+    const renderAIAnalysis = (analysis) => {
+        if (!analysis || !analysis.text) return '';
+        return `
+            <div class="ai-analysis-card">
+                <div class="ai-analysis-header">
+                    <span class="ai-icon">🤖</span>
+                    <span>AI ANALYSIS OF RESEARCH</span>
+                    <span class="ai-badge">${analysis.modelUsed || 'AI Analysis'}</span>
+                </div>
+                <div class="ai-analysis-text">
+                    ${analysis.text}
+                </div>
+                ${analysis.disclaimer ? `<div class="ai-disclaimer">${analysis.disclaimer}</div>` : ''}
+                <div class="ai-footer">
+                    <span>📊 Based on ${analysis.sourcesUsed || 0} research sources</span>
                 </div>
             </div>
         `;
@@ -163,22 +183,25 @@ function renderResults(data, query) {
     };
     
     let html = `
-        <!-- ANSWER SECTION WITH CITATIONS -->
+        <!-- AI ANALYSIS SECTION (NEW) -->
+        ${renderAIAnalysis(data.aiAnalysis)}
+        
+        <!-- ORIGINAL RESEARCH WITH CITATIONS -->
         <div class="answer-card">
             <div class="answer-header">
                 <span class="answer-icon">✅</span>
-                <span>RESEARCH FINDINGS</span>
+                <span>RESEARCH FINDINGS WITH CITATIONS</span>
             </div>
             <div class="answer-text">
-                ${formatAnswer(data.answer)}
+                ${formatAnswer(data.research)}
             </div>
             <div class="answer-footer">
-                <span class="evidence-count">📊 ${data.answer?.evidenceCount || 0} Sources (${data.answer?.governmentCount || 0} Government)</span>
+                <span class="evidence-count">📊 ${data.research?.evidenceCount || 0} Sources (${data.research?.governmentCount || 0} Government)</span>
                 <span class="citation-note">💡 Click any [number] to verify the source directly</span>
             </div>
         </div>
         
-        ${renderCitations(data.answer?.citations)}
+        ${renderCitations(data.research?.citations)}
         ${renderNews(data.newsArticles)}
         ${renderVideos(data.videoSources)}
         ${renderAllSources(data.allSources)}
@@ -189,7 +212,7 @@ function renderResults(data, query) {
             <span>📜 ${data.allSources?.filter(s => s.type === "archive").length || 0} Archive</span>
             <span>📰 ${data.newsArticles?.length || 0} News</span>
             <span>📺 ${data.videoSources?.length || 0} Videos</span>
-            <span>📋 ${data.answer?.citations?.length || 0} Citations</span>
+            <span>📋 ${data.research?.citations?.length || 0} Citations</span>
         </div>
     `;
     
@@ -201,9 +224,64 @@ function setSearch(topic) {
     searchDebate();
 }
 
-// Styles
+// Styles (added AI analysis card styles)
 const styles = `
 <style>
+/* AI Analysis Card - NEW */
+.ai-analysis-card {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(139, 92, 246, 0.05));
+    border: 2px solid rgba(139, 92, 246, 0.3);
+    border-radius: 24px;
+    padding: 28px;
+    margin-bottom: 28px;
+}
+.ai-analysis-header {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #a78bfa;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(139, 92, 246, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.ai-icon { font-size: 1.3rem; }
+.ai-badge {
+    font-size: 0.7rem;
+    background: rgba(139, 92, 246, 0.2);
+    padding: 4px 12px;
+    border-radius: 20px;
+    color: #c4b5fd;
+    margin-left: auto;
+}
+.ai-analysis-text {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #e4e4e7;
+    margin-bottom: 16px;
+}
+.ai-analysis-text p {
+    margin-bottom: 12px;
+}
+.ai-disclaimer {
+    font-size: 0.7rem;
+    color: #71717a;
+    margin-top: 12px;
+    padding: 8px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
+}
+.ai-footer {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    font-size: 0.7rem;
+    color: #a1a1aa;
+}
+
+/* Original Answer Card */
 .answer-card {
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.05));
     border: 2px solid rgba(16, 185, 129, 0.3);
@@ -476,13 +554,15 @@ const styles = `
     margin-top: 16px;
 }
 @media (max-width: 768px) {
-    .answer-card, .citations-section, .news-section, .video-section, .allsources-section { padding: 16px; }
+    .ai-analysis-card, .answer-card, .citations-section, .news-section, .video-section, .allsources-section { padding: 16px; }
     .stats-footer { gap: 10px; }
     .citation-item { flex-direction: column; }
     .citation-source { flex-direction: column; align-items: flex-start; }
     .allsource-item { flex-wrap: wrap; }
     .allsource-domain { max-width: none; white-space: normal; }
     .answer-footer { flex-direction: column; align-items: flex-start; }
+    .ai-analysis-header { flex-direction: column; align-items: flex-start; }
+    .ai-badge { margin-left: 0; }
 }
 </style>
 `;
@@ -501,4 +581,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Pure discovery research with citations');
+console.log('DebateSpace loaded - Research with AI analysis section');
