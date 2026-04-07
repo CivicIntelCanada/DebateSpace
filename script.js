@@ -1,5 +1,6 @@
 // ============================================
-// DEBATESPACE - CLEAN LAYOUT WITH FINAL ANSWER
+// DEBATESPACE - DEEP RESEARCH DISPLAY
+// No final answer - just thorough research with sources
 // ============================================
 
 async function searchDebate() {
@@ -48,7 +49,7 @@ function renderResults(data, query) {
                 <div class="claims-list">
                     ${claims.map(claim => `
                         <div class="claim-item ${claim.isGovernment ? 'gov-claim' : ''}">
-                            <span class="claim-text">${claim.claim.length > 250 ? claim.claim.substring(0, 250) + '...' : claim.claim}</span>
+                            <span class="claim-text">${claim.claim.length > 300 ? claim.claim.substring(0, 300) + '...' : claim.claim}</span>
                             <a href="${claim.url}" target="_blank" rel="noopener noreferrer" class="claim-source">🔗 ${claim.source}</a>
                             ${claim.isGovernment ? '<span class="gov-badge">🏛️ Official Source</span>' : ''}
                         </div>
@@ -85,18 +86,10 @@ function renderResults(data, query) {
         <div class="fact-card">
             <div class="fact-header">
                 <span class="fact-icon">✅</span>
-                <span>FACT CHECK & DEEP RESEARCH</span>
+                <span>DEEP RESEARCH & FACT CHECK</span>
             </div>
-            <div class="fact-verdict">${data.factCheck?.verdict || '🔍 GOVERNMENT RESEARCH'}</div>
+            <div class="fact-verdict">${data.factCheck?.verdict || '🔍 RESEARCH FINDINGS'}</div>
             <div class="fact-summary">${data.factCheck?.summary || 'No information available'}</div>
-            
-            ${data.factCheck?.finalAnswer ? `
-                <div class="final-answer">
-                    <div class="final-answer-header">📌 FINAL ANSWER:</div>
-                    <div class="final-answer-text">${data.factCheck.finalAnswer}</div>
-                </div>
-            ` : ''}
-            
             ${renderCitedClaims(data.factCheck?.citedClaims)}
             ${data.factCheck?.tip ? `<div class="fact-tip">💡 ${data.factCheck.tip}</div>` : ''}
         </div>
@@ -154,27 +147,6 @@ const styles = `
     line-height: 1.6;
     color: #e4e4e7;
     margin-bottom: 20px;
-}
-.final-answer {
-    background: rgba(16, 185, 129, 0.15);
-    border-radius: 16px;
-    padding: 16px 20px;
-    margin: 20px 0;
-    border: 1px solid rgba(16, 185, 129, 0.3);
-}
-.final-answer-header {
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: #10b981;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-.final-answer-text {
-    font-size: 1rem;
-    line-height: 1.5;
-    color: #e4e4e7;
-    font-weight: 500;
 }
 .fact-tip {
     font-size: 0.8rem;
@@ -321,7 +293,6 @@ const styles = `
     .stats-footer { gap: 12px; }
     .claim-item { padding: 10px 12px; }
     .claim-text { font-size: 0.8rem; }
-    .final-answer { padding: 12px 16px; }
 }
 </style>
 `;
@@ -340,4 +311,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Government-first deep research with final answer');
+console.log('DebateSpace loaded - Deep research mode');
