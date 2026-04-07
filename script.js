@@ -1,6 +1,6 @@
 // ============================================
 // DEBATESPACE - EVERY SENTENCE CITED DISPLAY
-// (YOUR ORIGINAL WORKING CODE - DO NOT CHANGE)
+// (YOUR ORIGINAL CODE - DO NOT CHANGE)
 // ============================================
 
 async function searchDebate() {
@@ -39,13 +39,11 @@ async function searchDebate() {
 function renderResults(data, query) {
     const container = document.getElementById('results');
     
-    // Format answer with clickable citations for each sentence
     const formatAnswerWithCitations = (answer) => {
         if (!answer || !answer.text) return 'No answer available.';
         
         let formattedHtml = '';
         
-        // If we have sentence-level citations, use them
         if (answer.sentences && answer.sentences.length > 0) {
             for (const sentence of answer.sentences) {
                 if (sentence.citationId) {
@@ -60,7 +58,6 @@ function renderResults(data, query) {
                 }
             }
         } else {
-            // Fallback: format whole text with citation links
             formattedHtml = answer.text;
             if (answer.citations) {
                 formattedHtml = formattedHtml.replace(/\[(\d+)\]/g, (match, num) => {
@@ -185,7 +182,6 @@ function renderResults(data, query) {
     };
     
     let html = `
-        <!-- IN-DEPTH ANSWER WITH CITATIONS -->
         <div class="answer-card">
             <div class="answer-header">
                 <span class="answer-icon">📌</span>
@@ -225,7 +221,6 @@ function setSearch(topic) {
     searchDebate();
 }
 
-// Styles
 const styles = `
 <style>
 .answer-card {
