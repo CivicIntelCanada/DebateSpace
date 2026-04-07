@@ -1,6 +1,5 @@
 // ============================================
-// DEBATESPACE - DEEP RESEARCH DISPLAY
-// Working YouTube with thumbnails
+// DEBATESPACE - CLEAN LAYOUT WITH FINAL ANSWER
 // ============================================
 
 async function searchDebate() {
@@ -48,9 +47,10 @@ function renderResults(data, query) {
                 <div class="claims-header">📋 VERIFIED SOURCES & GOVERNMENT DATA:</div>
                 <div class="claims-list">
                     ${claims.map(claim => `
-                        <div class="claim-item">
-                            <span class="claim-text">${claim.claim}</span>
+                        <div class="claim-item ${claim.isGovernment ? 'gov-claim' : ''}">
+                            <span class="claim-text">${claim.claim.length > 250 ? claim.claim.substring(0, 250) + '...' : claim.claim}</span>
                             <a href="${claim.url}" target="_blank" rel="noopener noreferrer" class="claim-source">🔗 ${claim.source}</a>
+                            ${claim.isGovernment ? '<span class="gov-badge">🏛️ Official Source</span>' : ''}
                         </div>
                     `).join('')}
                 </div>
@@ -59,9 +59,7 @@ function renderResults(data, query) {
     };
     
     const renderYouTube = (videos) => {
-        if (!videos || videos.length === 0) {
-            return '<div class="video-section"><div class="section-header"><span class="section-icon">📺</span><span>VIDEO EXPLANATIONS</span></div><div class="no-videos">No videos found for this topic</div></div>';
-        }
+        if (!videos || videos.length === 0) return '';
         return `
             <div class="video-section">
                 <div class="section-header">
@@ -75,7 +73,6 @@ function renderResults(data, query) {
                             <div class="video-info">
                                 <div class="video-title">${v.title.length > 60 ? v.title.substring(0,60)+'...' : v.title}</div>
                                 <div class="video-channel">${v.channel}</div>
-                                ${v.views ? `<div class="video-views">👁️ ${v.views} views</div>` : ''}
                             </div>
                         </div>
                     `).join('')}
@@ -88,10 +85,18 @@ function renderResults(data, query) {
         <div class="fact-card">
             <div class="fact-header">
                 <span class="fact-icon">✅</span>
-                <span>DEEP RESEARCH & FACT CHECK</span>
+                <span>FACT CHECK & DEEP RESEARCH</span>
             </div>
-            <div class="fact-verdict">${data.factCheck?.verdict || '🔍 RESEARCH FINDINGS'}</div>
+            <div class="fact-verdict">${data.factCheck?.verdict || '🔍 GOVERNMENT RESEARCH'}</div>
             <div class="fact-summary">${data.factCheck?.summary || 'No information available'}</div>
+            
+            ${data.factCheck?.finalAnswer ? `
+                <div class="final-answer">
+                    <div class="final-answer-header">📌 FINAL ANSWER:</div>
+                    <div class="final-answer-text">${data.factCheck.finalAnswer}</div>
+                </div>
+            ` : ''}
+            
             ${renderCitedClaims(data.factCheck?.citedClaims)}
             ${data.factCheck?.tip ? `<div class="fact-tip">💡 ${data.factCheck.tip}</div>` : ''}
         </div>
@@ -149,7 +154,27 @@ const styles = `
     line-height: 1.6;
     color: #e4e4e7;
     margin-bottom: 20px;
-    white-space: pre-wrap;
+}
+.final-answer {
+    background: rgba(16, 185, 129, 0.15);
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin: 20px 0;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.final-answer-header {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #10b981;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.final-answer-text {
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #e4e4e7;
+    font-weight: 500;
 }
 .fact-tip {
     font-size: 0.8rem;
@@ -179,6 +204,7 @@ const styles = `
     transition: transform 0.2s;
 }
 .claim-item:hover { transform: translateX(4px); background: rgba(16, 185, 129, 0.05); }
+.gov-claim { border-left-color: #fbbf24; }
 .claim-text { display: block; font-size: 0.85rem; color: #e4e4e7; margin-bottom: 10px; line-height: 1.4; }
 .claim-source {
     display: inline-block;
@@ -188,8 +214,17 @@ const styles = `
     padding: 5px 10px;
     background: rgba(16, 185, 129, 0.1);
     border-radius: 8px;
+    margin-right: 8px;
 }
 .claim-source:hover { background: rgba(16, 185, 129, 0.2); text-decoration: underline; }
+.gov-badge {
+    display: inline-block;
+    font-size: 0.6rem;
+    color: #fbbf24;
+    padding: 3px 8px;
+    background: rgba(251, 191, 36, 0.1);
+    border-radius: 12px;
+}
 .video-section {
     background: rgba(20, 20, 35, 0.85);
     backdrop-filter: blur(10px);
@@ -241,12 +276,6 @@ const styles = `
     line-height: 1.3;
 }
 .video-channel { font-size: 0.65rem; color: #71717a; }
-.video-views { font-size: 0.6rem; color: #71717a; margin-top: 4px; }
-.no-videos {
-    text-align: center;
-    padding: 40px;
-    color: #71717a;
-}
 .stats-footer {
     background: rgba(0, 0, 0, 0.3);
     border-radius: 40px;
@@ -292,6 +321,7 @@ const styles = `
     .stats-footer { gap: 12px; }
     .claim-item { padding: 10px 12px; }
     .claim-text { font-size: 0.8rem; }
+    .final-answer { padding: 12px 16px; }
 }
 </style>
 `;
@@ -310,4 +340,4 @@ document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace loaded - Deep research with YouTube');
+console.log('DebateSpace loaded - Government-first deep research with final answer');
