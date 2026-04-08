@@ -2,37 +2,137 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DebateSpace - Research & Fact Check</title>
-    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>DebateSpace | Government Source Research with Citations</title>
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:title" content="DebateSpace - Factual Research with Government Sources">
+    <meta property="og:description" content="Every sentence cited. Government sources prioritized. Deep research with verified facts.">
+    <meta property="og:type" content="website">
+    
+    <!-- Theme -->
+    <meta name="theme-color" content="#0a0a0f">
+    
+    <style>
+        /* Critical inline styles to prevent FOUC */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0a0a0f 0%, #0f0f1a 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+            color: #e4e4e7;
+            min-height: 100vh;
+        }
+        
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 60px 20px;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(16, 185, 129, 0.2);
+            border-top-color: #10b981;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        #results {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+    </style>
+    
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-    <div class="container">
+    <div class="app-container">
         <!-- Header -->
-        <div class="header">
-            <h1>🔍 DebateSpace</h1>
-            <p>Fact Check · Government Sources · News Articles · Video Explanations</p>
-        </div>
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">🔬</span>
+                    <span class="logo-text">DebateSpace</span>
+                    <span class="logo-badge">DEEP RESEARCH</span>
+                </div>
+                <div class="header-tagline">
+                    Fact Check • Government Sources • News Articles • Video Explanations
+                </div>
+            </div>
+        </header>
 
-        <!-- Search Form -->
-        <form id="searchForm" class="search-form">
-            <input type="text" id="searchInput" placeholder="Enter your research query..." required>
-            <button type="submit" id="searchBtn">Research</button>
-        </form>
+        <!-- Main Search Section -->
+        <main class="main-content">
+            <div class="search-container">
+                <div class="search-wrapper">
+                    <span class="search-icon">🔍</span>
+                    <input 
+                        type="text" 
+                        id="searchInput" 
+                        class="search-input" 
+                        placeholder='Ask a question... Example: "How many weeks of training do ICE agents receive?" or "Who was Mark Carney?"'
+                        autocomplete="off"
+                    >
+                    <button onclick="searchDebate()" class="search-button">
+                        <span>Research</span>
+                    </button>
+                </div>
+                
+                <div class="suggestions">
+                    <span class="suggest-label">Try:</span>
+                    <button onclick="setSearch('Canada immigration statistics 2025')" class="suggestion-chip">🇨🇦 Canada immigration</button>
+                    <button onclick="setSearch('US inflation rate BLS data')" class="suggestion-chip">📈 US inflation</button>
+                    <button onclick="setSearch('ICE agent training length weeks FLETC')" class="suggestion-chip">🛡️ ICE training</button>
+                    <button onclick="setSearch('climate change EPA data 2025')" class="suggestion-chip">🌍 Climate facts</button>
+                    <button onclick="setSearch('Mark Carney governor Bank of Canada')" class="suggestion-chip">🏦 Mark Carney</button>
+                </div>
+            </div>
 
-        <!-- Loading Indicator -->
-        <div id="loading" class="loading" style="display: none;">
-            <div class="spinner"></div>
-            <p>Researching <span id="loadingQuery"></span>...</p>
-        </div>
+            <!-- Loading Indicator -->
+            <div id="loading" class="loading-spinner">
+                <div class="spinner"></div>
+                <div class="loading-text">🔬 Conducting deep research across government databases...</div>
+                <div class="loading-sub">Searching .gov, archives, and official records</div>
+            </div>
 
-        <!-- Error Message -->
-        <div id="error" class="error" style="display: none;"></div>
+            <!-- Results Container -->
+            <div id="results"></div>
+        </main>
 
-        <!-- Results Container -->
-        <div id="results" class="results" style="display: none;"></div>
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <span>🔬 Every sentence is a direct quote from a government or official source</span>
+                <span>📋 Citations are clickable and go directly to the source</span>
+                <span>🏛️ Government sources prioritized over news articles</span>
+            </div>
+        </footer>
     </div>
 
-    <script src="script.js"></script>
+    <!-- Scripts -->
+    <script src="/script.js"></script>
+    
+    <script>
+        // Focus on search input on load
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.focus();
+            }
+        });
+    </script>
 </body>
 </html>
