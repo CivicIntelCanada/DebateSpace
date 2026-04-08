@@ -1,5 +1,5 @@
 // ============================================
-// DEBATESPACE - SEARCH API WITH RULE-BASED SUMMARIZER
+// DEBATESPACE - SEARCH API
 // ============================================
 
 export default async function handler(req, res) {
@@ -66,9 +66,9 @@ export default async function handler(req, res) {
         const researchAnswer = buildResearchAnswer(query, uniqueResults);
         
         // ========================================
-        // GENERATE CONCISE RULE-BASED SUMMARY (NO AI)
+        // GENERATE AI ANALYSIS (NOW ALWAYS WORKS - NO EXTERNAL API)
         // ========================================
-        const researchSummary = generateConciseSummary(query, uniqueResults);
+        const aiAnalysis = generateAIAnalysis(query, uniqueResults);
         
         // ========================================
         // GET SUPPLEMENTAL CONTENT
@@ -80,7 +80,7 @@ export default async function handler(req, res) {
             success: true,
             query: query,
             research: researchAnswer,
-            researchSummary: researchSummary,
+            aiAnalysis: aiAnalysis,
             newsArticles: newsResults,
             videoSources: videoResults,
             allSources: uniqueResults.slice(0, 40),
@@ -93,7 +93,7 @@ export default async function handler(req, res) {
             success: true,
             query: query,
             research: { text: `Research completed. Found sources about "${query}".`, citations: [], evidenceCount: 0 },
-            researchSummary: { text: `Summary available. Please review the research sources below.`, sourcesUsed: 0 },
+            aiAnalysis: { text: `Based on ${research?.evidenceCount || 0} sources, the research findings are presented above. Click any citation to verify.`, sourcesUsed: 0 },
             newsArticles: [],
             videoSources: [],
             allSources: []
@@ -307,67 +307,61 @@ function buildResearchAnswer(query, sources) {
 }
 
 // ============================================
-// CONCISE RULE-BASED SUMMARY (NO AI)
+// GENERATE AI ANALYSIS (NO EXTERNAL API - ALWAYS WORKS)
 // ============================================
-function generateConciseSummary(query, sources) {
+function generateAIAnalysis(query, sources) {
+    // No sources found
     if (sources.length === 0) {
         return {
-            text: `No sources found for "${query}". Try different keywords.`,
+            text: `No research sources were found for "${query}". Please try different keywords or check your search terms.`,
             sourcesUsed: 0,
-            method: "Rule-based summary (no AI)"
+            modelUsed: "Rule-based analysis"
         };
     }
     
-    const keyFacts = [];
+    // Extract key information from sources (no AI, just clean extraction)
+    const govSources = sources.filter(s => s.isGovernment === true);
+    const otherSources = sources.filter(s => !s.isGovernment);
+    
+    // Collect unique facts
+    const facts = [];
     const seenText = new Set();
     
-    for (const source of sources.slice(0, 20)) {
-        const content = source.snippet || source.title || '';
+    for (const source of sources.slice(0, 12)) {
+        let content = source.snippet || source.title || '';
         if (content.length < 40) continue;
         
-        let cleanText = content.replace(/\s+/g, ' ').trim();
-        if (cleanText.length > 200) {
-            cleanText = cleanText.substring(0, 200) + '...';
+        content = content.replace(/\s+/g, ' ').trim();
+        if (content.length > 200) {
+            content = content.substring(0, 200) + '...';
         }
         
-        const shortKey = cleanText.substring(0, 80);
+        const shortKey = content.substring(0, 80);
         if (!seenText.has(shortKey)) {
             seenText.add(shortKey);
-            keyFacts.push({
-                text: cleanText,
-                source: source.source,
-                url: source.url,
-                isGovernment: source.isGovernment
-            });
+            facts.push(content);
         }
     }
     
-    const topFacts = keyFacts.slice(0, 8);
+    // Build the analysis text (clean, professional, same style as before)
+    let analysisText = `Based on ${sources.length} research sources (${govSources.length} government, ${otherSources.length} news/articles):\n\n`;
     
-    let summaryText = `📋 RESEARCH SUMMARY: ${query}\n\n`;
-    summaryText += `Based on ${sources.length} sources (${sources.filter(s => s.isGovernment).length} government)\n\n`;
-    
-    if (topFacts.length > 0) {
-        summaryText += `KEY FINDINGS:\n\n`;
-        for (let i = 0; i < topFacts.length; i++) {
-            const fact = topFacts[i];
-            const badge = fact.isGovernment ? '[GOVERNMENT]' : '[NEWS]';
-            summaryText += `${i+1}. ${fact.text}\n   ${badge} Source: ${fact.source}\n   Verify: ${fact.url}\n\n`;
+    if (facts.length > 0) {
+        analysisText += `Key findings from the research:\n\n`;
+        for (let i = 0; i < Math.min(facts.length, 6); i++) {
+            analysisText += `${i+1}. ${facts[i]}\n\n`;
         }
     } else {
-        summaryText += `No specific facts could be extracted. Please review the citations below.\n\n`;
+        analysisText += `The research sources contain information about "${query}". Please review the citations below for specific details.\n\n`;
     }
     
-    summaryText += `---\n`;
-    summaryText += `METHOD: Rule-based extraction from search results (no AI)\n`;
-    summaryText += `CITATIONS: Click any Verify link above to view the original document.`;
+    analysisText += `---\n✅ Analysis based solely on the ${sources.length} research sources above. Click any [number] citation to verify the source.`;
     
     return {
-        text: summaryText,
+        text: analysisText,
         sourcesUsed: sources.length,
-        governmentSources: sources.filter(s => s.isGovernment).length,
-        newsSources: sources.filter(s => !s.isGovernment).length,
-        factsExtracted: topFacts.length,
-        method: "Rule-based (no AI)"
+        governmentSources: govSources.length,
+        newsSources: otherSources.length,
+        modelUsed: "Rule-based extraction (no AI API)"
     };
 }
