@@ -1,5 +1,5 @@
 // ============================================
-// DEBATESPACE - DISCOVERY RESEARCH WITH RULE-BASED SUMMARIZER
+// DEBATESPACE - SEARCH API WITH RULE-BASED SUMMARIZER
 // ============================================
 
 export default async function handler(req, res) {
@@ -16,11 +16,10 @@ export default async function handler(req, res) {
         const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
         
         // ========================================
-        // SEARCH ALL SOURCES (UNCHANGED)
+        // SEARCH ALL SOURCES
         // ========================================
         let allResults = [];
         
-        // CX Engines
         const cxEngines = [
             { name: 'North America', cx: process.env.GOOGLE_SEARCH_CX_NA },
             { name: 'Asia Pacific', cx: process.env.GOOGLE_SEARCH_CX_ASIA },
@@ -36,7 +35,6 @@ export default async function handler(req, res) {
             }
         }
         
-        // Government domains
         const govDomains = ['.gov', '.gc.ca', '.gov.uk', '.mil'];
         for (const domain of govDomains) {
             if (apiKey) {
@@ -45,15 +43,12 @@ export default async function handler(req, res) {
             }
         }
         
-        // Archives
         const archiveResults = await searchArchives(query);
         allResults.push(...archiveResults);
         
-        // Tavily
         const tavilyResults = await tavilySearch(query);
         allResults.push(...tavilyResults);
         
-        // Remove duplicates
         const uniqueResults = [];
         const seenUrls = new Set();
         for (const result of allResults) {
@@ -66,17 +61,17 @@ export default async function handler(req, res) {
         console.log(`Total sources: ${uniqueResults.length}`);
         
         // ========================================
-        // BUILD RESEARCH ANSWER (Citations - UNCHANGED)
+        // BUILD RESEARCH ANSWER (Citations)
         // ========================================
         const researchAnswer = buildResearchAnswer(query, uniqueResults);
         
         // ========================================
-        // GENERATE RULE-BASED ANALYSIS (REPLACES AI)
+        // GENERATE CONCISE RULE-BASED SUMMARY (NO AI)
         // ========================================
-        const ruleBasedAnalysis = generateRuleBasedAnalysis(query, uniqueResults);
+        const researchSummary = generateConciseSummary(query, uniqueResults);
         
         // ========================================
-        // GET SUPPLEMENTAL CONTENT (UNCHANGED)
+        // GET SUPPLEMENTAL CONTENT
         // ========================================
         const newsResults = await getNews(query);
         const videoResults = await getVideos(query);
@@ -85,7 +80,7 @@ export default async function handler(req, res) {
             success: true,
             query: query,
             research: researchAnswer,
-            aiAnalysis: ruleBasedAnalysis,  // Now returns rule-based analysis, not AI
+            researchSummary: researchSummary,
             newsArticles: newsResults,
             videoSources: videoResults,
             allSources: uniqueResults.slice(0, 40),
@@ -98,7 +93,7 @@ export default async function handler(req, res) {
             success: true,
             query: query,
             research: { text: `Research completed. Found sources about "${query}".`, citations: [], evidenceCount: 0 },
-            aiAnalysis: { text: `Analysis completed. Please review the research sources below.`, sourcesUsed: 0 },
+            researchSummary: { text: `Summary available. Please review the research sources below.`, sourcesUsed: 0 },
             newsArticles: [],
             videoSources: [],
             allSources: []
@@ -107,7 +102,7 @@ export default async function handler(req, res) {
 }
 
 // ============================================
-// SEARCH FUNCTIONS (COMPLETELY UNCHANGED)
+// SEARCH FUNCTIONS
 // ============================================
 async function searchCX(apiKey, cx, query) {
     const results = [];
@@ -262,7 +257,7 @@ async function getVideos(query) {
 }
 
 // ============================================
-// BUILD RESEARCH ANSWER (Citations - UNCHANGED)
+// BUILD RESEARCH ANSWER (Citations)
 // ============================================
 function buildResearchAnswer(query, sources) {
     const govSources = sources.filter(s => s.isGovernment === true);
@@ -312,218 +307,67 @@ function buildResearchAnswer(query, sources) {
 }
 
 // ============================================
-// NEW: RULE-BASED ANALYSIS GENERATOR (No AI)
+// CONCISE RULE-BASED SUMMARY (NO AI)
 // ============================================
-function generateRuleBasedAnalysis(query, sources) {
+function generateConciseSummary(query, sources) {
     if (sources.length === 0) {
         return {
-            text: `No research sources were found for "${query}". Please try different keywords or check your search terms.`,
+            text: `No sources found for "${query}". Try different keywords.`,
             sourcesUsed: 0,
-            method: "Rule-based analysis (no AI)",
-            sections: []
+            method: "Rule-based summary (no AI)"
         };
     }
     
-    // Extract key information from sources
-    const govSources = sources.filter(s => s.isGovernment === true);
-    const newsSources = sources.filter(s => !s.isGovernment && (s.type === 'cx' || s.type === 'web'));
-    
-    // Keyword extraction patterns
-    const patterns = {
-        requirements: {
-            keywords: ['require', 'must', 'mandatory', 'necessary', 'prerequisite', 'need to', 'required to', 'obtain', 'complete', 'pass', 'score', '70%', 'percent'],
-            matches: []
-        },
-        training: {
-            keywords: ['training', 'academy', 'course', 'program', 'basic training', 'fletc', 'instruction', 'curriculum', 'weeks', 'duration', 'schedule'],
-            matches: []
-        },
-        policies: {
-            keywords: ['policy', 'procedure', 'protocol', 'standard', 'guideline', 'regulation', 'rule', 'directive', 'order'],
-            matches: []
-        },
-        incidents: {
-            keywords: ['incident', 'event', 'killing', 'death', 'injury', 'violence', 'shooting', 'accident', 'complaint', 'investigation'],
-            matches: []
-        },
-        controversies: {
-            keywords: ['debate', 'controversy', 'criticism', 'concern', 'accountability', 'reform', 'oversight', 'question', 'inquiry', 'investigation'],
-            matches: []
-        },
-        mission: {
-            keywords: ['mission', 'purpose', 'goal', 'objective', 'role', 'responsibility', 'duty', 'function', 'protect', 'enforce', 'security'],
-            matches: []
-        },
-        partnerships: {
-            keywords: ['287(g)', 'local', 'state', 'partnership', 'collaboration', 'agency', 'cooperation', 'joint', 'task force'],
-            matches: []
-        },
-        fitness: {
-            keywords: ['fitness', 'physical', 'test', 'pft', 'exercise', 'strength', 'endurance', 'medical', 'health', 'clearance', 'secret clearance'],
-            matches: []
-        },
-        locations: {
-            keywords: ['glynco', 'georgia', 'florida', 'artesia', 'charleston', 'location', 'based', 'headquarters', 'facility', 'center'],
-            matches: []
-        }
-    };
-    
-    // Extract quotes and categorize them
-    const extractedQuotes = [];
+    const keyFacts = [];
+    const seenText = new Set();
     
     for (const source of sources.slice(0, 20)) {
-        const content = (source.snippet || source.title || '').toLowerCase();
-        const originalContent = source.snippet || source.title || '';
+        const content = source.snippet || source.title || '';
+        if (content.length < 40) continue;
         
-        for (const [category, config] of Object.entries(patterns)) {
-            for (const keyword of config.keywords) {
-                if (content.includes(keyword.toLowerCase())) {
-                    // Extract surrounding context
-                    let quote = originalContent;
-                    if (quote.length > 200) {
-                        const keywordIndex = originalContent.toLowerCase().indexOf(keyword.toLowerCase());
-                        const start = Math.max(0, keywordIndex - 60);
-                        const end = Math.min(originalContent.length, keywordIndex + 140);
-                        quote = (start > 0 ? '...' : '') + originalContent.substring(start, end) + (end < originalContent.length ? '...' : '');
-                    }
-                    
-                    patterns[category].matches.push({
-                        text: quote,
-                        source: source.source,
-                        url: source.url,
-                        isGovernment: source.isGovernment,
-                        title: source.title
-                    });
-                    break; // Only add once per source per category
-                }
-            }
+        let cleanText = content.replace(/\s+/g, ' ').trim();
+        if (cleanText.length > 200) {
+            cleanText = cleanText.substring(0, 200) + '...';
         }
         
-        // Also collect general quotes for "Key Findings"
-        if (originalContent.length > 60 && originalContent.length < 500) {
-            extractedQuotes.push({
-                text: originalContent,
+        const shortKey = cleanText.substring(0, 80);
+        if (!seenText.has(shortKey)) {
+            seenText.add(shortKey);
+            keyFacts.push({
+                text: cleanText,
                 source: source.source,
                 url: source.url,
-                isGovernment: source.isGovernment,
-                title: source.title
+                isGovernment: source.isGovernment
             });
         }
     }
     
-    // Deduplicate matches
-    for (const category in patterns) {
-        const unique = [];
-        const seen = new Set();
-        for (const match of patterns[category].matches) {
-            const key = match.text.substring(0, 100);
-            if (!seen.has(key)) {
-                seen.add(key);
-                unique.push(match);
-            }
+    const topFacts = keyFacts.slice(0, 8);
+    
+    let summaryText = `📋 RESEARCH SUMMARY: ${query}\n\n`;
+    summaryText += `Based on ${sources.length} sources (${sources.filter(s => s.isGovernment).length} government)\n\n`;
+    
+    if (topFacts.length > 0) {
+        summaryText += `KEY FINDINGS:\n\n`;
+        for (let i = 0; i < topFacts.length; i++) {
+            const fact = topFacts[i];
+            const badge = fact.isGovernment ? '[GOVERNMENT]' : '[NEWS]';
+            summaryText += `${i+1}. ${fact.text}\n   ${badge} Source: ${fact.source}\n   Verify: ${fact.url}\n\n`;
         }
-        patterns[category].matches = unique.slice(0, 3);
+    } else {
+        summaryText += `No specific facts could be extracted. Please review the citations below.\n\n`;
     }
     
-    // Build the analysis text
-    const sections = [];
-    let fullText = '';
-    
-    // Header
-    fullText += `📊 RESEARCH ANALYSIS: "${query.toUpperCase()}"\n`;
-    fullText += `Based on ${sources.length} sources (${govSources.length} government, ${newsSources.length} news/articles)\n`;
-    fullText += `Analysis method: Rule-based extraction (no AI)\n`;
-    fullText += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    
-    // Section 1: Key Findings (most relevant quotes)
-    const uniqueFindings = [];
-    const seenFindings = new Set();
-    for (const quote of extractedQuotes.slice(0, 8)) {
-        const shortQuote = quote.text.length > 150 ? quote.text.substring(0, 150) + '...' : quote.text;
-        if (!seenFindings.has(shortQuote) && shortQuote.length > 40) {
-            seenFindings.add(shortQuote);
-            uniqueFindings.push(quote);
-        }
-    }
-    
-    if (uniqueFindings.length > 0) {
-        fullText += `🔍 KEY FINDINGS FROM RESEARCH:\n`;
-        for (let i = 0; i < Math.min(uniqueFindings.length, 5); i++) {
-            const finding = uniqueFindings[i];
-            const sourceType = finding.isGovernment ? '🏛️' : '📄';
-            fullText += `${i+1}. "${finding.text}"\n   ${sourceType} Source: ${finding.source}\n\n`;
-        }
-        fullText += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    }
-    
-    // Section 2: Training Requirements (if found)
-    if (patterns.requirements.matches.length > 0 || patterns.training.matches.length > 0) {
-        fullText += `📋 TRAINING & REQUIREMENTS:\n`;
-        for (const match of [...patterns.requirements.matches, ...patterns.training.matches].slice(0, 3)) {
-            fullText += `• ${match.text}\n  [${match.isGovernment ? 'Government' : 'News'}: ${match.source}]\n\n`;
-        }
-        fullText += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    }
-    
-    // Section 3: Physical & Security Standards
-    if (patterns.fitness.matches.length > 0) {
-        fullText += `💪 PHYSICAL & SECURITY STANDARDS:\n`;
-        for (const match of patterns.fitness.matches.slice(0, 2)) {
-            fullText += `• ${match.text}\n  [${match.isGovernment ? 'Government' : 'News'}: ${match.source}]\n\n`;
-        }
-        fullText += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    }
-    
-    // Section 4: Mission & Purpose
-    if (patterns.mission.matches.length > 0) {
-        fullText += `🎯 MISSION & PURPOSE:\n`;
-        for (const match of patterns.mission.matches.slice(0, 2)) {
-            fullText += `• ${match.text}\n  [${match.isGovernment ? 'Government' : 'News'}: ${match.source}]\n\n`;
-        }
-        fullText += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    }
-    
-    // Section 5: Partnerships & Local Programs
-    if (patterns.partnerships.matches.length > 0) {
-        fullText += `🤝 PARTNERSHIPS & LOCAL PROGRAMS:\n`;
-        for (const match of patterns.partnerships.matches.slice(0, 2)) {
-            fullText += `• ${match.text}\n  [${match.isGovernment ? 'Government' : 'News'}: ${match.source}]\n\n`;
-        }
-        fullText += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    }
-    
-    // Section 6: Controversies & Incidents (if found)
-    if (patterns.incidents.matches.length > 0 || patterns.controversies.matches.length > 0) {
-        fullText += `⚠️ CONTROVERSIES & INCIDENTS:\n`;
-        for (const match of [...patterns.incidents.matches, ...patterns.controversies.matches].slice(0, 3)) {
-            fullText += `• ${match.text}\n  [${match.isGovernment ? 'Government' : 'News'}: ${match.source}]\n\n`;
-        }
-        fullText += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    }
-    
-    // Section 7: Statistical Summary
-    fullText += `📊 STATISTICAL SUMMARY:\n`;
-    fullText += `• Total sources analyzed: ${sources.length}\n`;
-    fullText += `• Government sources: ${govSources.length}\n`;
-    fullText += `• News/Article sources: ${newsSources.length}\n`;
-    fullText += `• Unique findings extracted: ${uniqueFindings.length}\n`;
-    fullText += `• Citations available: Click any source to verify\n\n`;
-    fullText += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    
-    // Footer
-    fullText += `✅ VERIFICATION: All information above is directly extracted from the ${sources.length} research sources. Click any [source] link to view the original document.\n`;
-    fullText += `🔄 METHOD: Rule-based text extraction and categorization. No AI generation used.\n`;
-    fullText += `📅 Analysis generated: ${new Date().toISOString().split('T')[0]}\n`;
+    summaryText += `---\n`;
+    summaryText += `METHOD: Rule-based extraction from search results (no AI)\n`;
+    summaryText += `CITATIONS: Click any Verify link above to view the original document.`;
     
     return {
-        text: fullText,
+        text: summaryText,
         sourcesUsed: sources.length,
-        method: "Rule-based analysis (no AI)",
-        sections: sections,
-        governmentSources: govSources.length,
-        newsSources: newsSources.length,
-        patternsDetected: Object.fromEntries(
-            Object.entries(patterns).map(([k, v]) => [k, v.matches.length])
-        )
+        governmentSources: sources.filter(s => s.isGovernment).length,
+        newsSources: sources.filter(s => !s.isGovernment).length,
+        factsExtracted: topFacts.length,
+        method: "Rule-based (no AI)"
     };
 }
