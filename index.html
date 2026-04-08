@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>DebateSpace • Fact Check with Government Sources</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewfit=cover">
+    <title>DebateSpace • Deep Research with Government Sources</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -12,14 +12,14 @@
         <div class="site-header">
             <div class="logo-badge">⚖️</div>
             <h1>Debate<span>Space</span></h1>
-            <p class="tagline">Government Sources • News • Videos • AI Analysis</p>
+            <p class="tagline">CX Search • Government Data • Archives • Statistics • News • Videos</p>
         </div>
 
         <div class="search-section">
             <div class="search-container">
                 <div class="search-icon">🔍</div>
-                <input type="text" id="searchInput" placeholder='Ask any question... e.g., "ICE agent training" or "Canada immigration 2026"'>
-                <button id="searchBtn" onclick="searchDebate()">Fact Check</button>
+                <input type="text" id="searchInput" placeholder='Ask any question... e.g., "ICE agent training requirements" or "Canada immigration 2026"'>
+                <button id="searchBtn" onclick="searchDebate()">Deep Research</button>
             </div>
             <div class="search-tips">
                 <span>💡 Try:</span>
@@ -27,18 +27,19 @@
                 <button class="tip-btn" onclick="setSearch('Canada immigration 2026')">Canada immigration</button>
                 <button class="tip-btn" onclick="setSearch('US inflation rate')">US inflation</button>
                 <button class="tip-btn" onclick="setSearch('Climate change facts')">Climate facts</button>
+                <button class="tip-btn" onclick="setSearch('FLETC training programs')">FLETC training</button>
             </div>
         </div>
 
         <div id="loading" class="loading" style="display: none;">
             <div class="spinner"></div>
-            <p>🔍 Researching government sources & generating analysis...</p>
+            <p>🔍 Deep research across government sources, archives & data...</p>
         </div>
 
         <div id="results" class="results"></div>
 
         <div class="site-footer">
-            <p>📊 Sources: Government Websites (.gov, .gc.ca) • GNews • YouTube • Tavily AI • Groq AI</p>
+            <p>📊 Sources: CX Search Engines • Government (.gov, .gc.ca) • Archives • Statistics • GNews • YouTube • Tavily</p>
             <p>🎯 Click any [number] citation to verify the source directly</p>
         </div>
     </div>
