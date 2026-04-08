@@ -2,28 +2,47 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debate Fact Checker - Left, Centre, Right Sources</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>DebateSpace • Deep Research with Government Sources</title>
     <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <h1>🗳️ Debate Fact Checker</h1>
-        <p class="subtitle">Left • Centre • Right • With Sources</p>
-        
-        <div class="search-box">
-            <input type="text" id="searchInput" placeholder="Enter any debate claim... e.g., 'Did inflation go down under Biden?'">
-            <button onclick="searchDebate()">🔍 Fact Check</button>
+    <div class="main-container">
+        <div class="site-header">
+            <div class="logo-badge">⚖️</div>
+            <h1>Debate<span>Space</span></h1>
+            <p class="tagline">Fact Check · Government Sources · News Articles · Video Explanations</p>
         </div>
-        
-        <div class="loading" id="loading" style="display:none;">
+
+        <div class="search-section">
+            <div class="search-container">
+                <div class="search-icon">🔍</div>
+                <input type="text" id="searchInput" placeholder='Ask any question... e.g., "ICE agent training requirements" or "Canada immigration 2026"'>
+                <button id="searchBtn" onclick="searchDebate()">Fact Check</button>
+            </div>
+            <div class="search-tips">
+                <span>💡 Try:</span>
+                <button class="tip-btn" onclick="setSearch('ICE agent training requirements')">ICE training</button>
+                <button class="tip-btn" onclick="setSearch('Canada immigration 2026')">Canada immigration</button>
+                <button class="tip-btn" onclick="setSearch('US inflation rate')">US inflation</button>
+                <button class="tip-btn" onclick="setSearch('Climate change facts')">Climate facts</button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
             <div class="spinner"></div>
-            <p>Searching sources and generating rebuttals...</p>
+            <p>🔍 Searching government sources & generating analysis...</p>
         </div>
-        
+
         <div id="results" class="results"></div>
+
+        <div class="site-footer">
+            <p>📊 Sources: Government Websites (.gov, .gc.ca) • GNews • YouTube • Tavily AI • Groq AI</p>
+            <p>🎯 Click any [number] citation to verify the source directly</p>
+        </div>
     </div>
-    
+
     <script src="script.js"></script>
 </body>
 </html>
