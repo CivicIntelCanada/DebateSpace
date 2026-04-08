@@ -3,27 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Debate Fact Checker - Left, Centre, Right Sources</title>
+    <title>DebateSpace | Fact-Check with Government Sources</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>🗳️ Debate Fact Checker</h1>
-        <p class="subtitle">Left • Centre • Right • With Sources</p>
-        
-        <div class="search-box">
-            <input type="text" id="searchInput" placeholder="Enter any debate claim... e.g., 'Did inflation go down under Biden?'">
-            <button onclick="searchDebate()">🔍 Fact Check</button>
+        <div class="header">
+            <div class="logo-area">
+                <h1>DebateSpace</h1>
+                <p>Fact Check · Government Sources · News Articles · Video Explanations</p>
+            </div>
+            <div class="search-suggestions">
+                <button class="suggestion-btn" data-query="Canada immigration">🇨🇦 Canada immigration</button>
+                <button class="suggestion-btn" data-query="US inflation rate">📈 US inflation</button>
+                <button class="suggestion-btn" data-query="ICE agent training">⚖️ ICE training</button>
+                <button class="suggestion-btn" data-query="climate facts">🌎 Climate facts</button>
+                <button class="suggestion-btn" data-query="Mark Carney">🏦 Mark Carney</button>
+            </div>
         </div>
-        
-        <div class="loading" id="loading" style="display:none;">
-            <div class="spinner"></div>
-            <p>Searching sources and generating rebuttals...</p>
+
+        <div class="search-panel">
+            <input type="text" id="searchInput" placeholder="Ask about government data, policy, ICE training, inflation..." value="ICE agent training">
+            <button id="searchBtn">🔍 Deep Research</button>
+            <div class="status-badge" id="statusBadge">Ready</div>
         </div>
-        
-        <div id="results" class="results"></div>
+
+        <div class="main-grid">
+            <div class="left-col">
+                <div class="answer-card" id="answerContainer">
+                    <div class="answer-header">
+                        <h2>Factual Answer with Citations</h2>
+                        <span class="source-count" id="sourceCountBadge">— sources</span>
+                    </div>
+                    <div id="answerText" class="factual-answer">
+                        <p>🔍 Enter a query above. DebateSpace will fetch government sources, news, and YouTube videos.</p>
+                    </div>
+                    <div class="sources-list" id="sourcesList">
+                        <h3>📚 Verified Source Citations</h3>
+                        <div id="sourcesItems">Click search to retrieve references.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="news-card">
+                    <h3>📰 Related News Articles</h3>
+                    <div id="newsList">News will appear here</div>
+                </div>
+                <div class="video-card">
+                    <h3>🎥 YouTube Explanations</h3>
+                    <div id="videoList">Videos will appear here</div>
+                </div>
+            </div>
+        </div>
+        <footer>
+            DebateSpace · Deep research using government & official sources. Click any citation to verify.
+        </footer>
     </div>
-    
     <script src="script.js"></script>
 </body>
 </html>
