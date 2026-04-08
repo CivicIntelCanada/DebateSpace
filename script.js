@@ -1,262 +1,202 @@
-// ============================================
-// DEBATESPACE - DISPLAY WITH WORKING AI ANALYSIS
-// ============================================
+// DebateSpace - Main Application Script
 
-async function searchDebate() {
-    const query = document.getElementById('searchInput').value;
-    if (!query.trim()) {
-        alert('Please enter a debate topic or question');
-        return;
-    }
+const searchForm = document.getElementById('searchForm');
+const searchInput = document.getElementById('searchInput');
+const searchBtn = document.getElementById('searchBtn');
+const loadingDiv = document.getElementById('loading');
+const errorDiv = document.getElementById('error');
+const resultsDiv = document.getElementById('results');
+
+searchForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
     
-    const loading = document.getElementById('loading');
-    const resultsDiv = document.getElementById('results');
+    const query = searchInput.value.trim();
+    if (!query) return;
     
-    loading.style.display = 'block';
-    resultsDiv.innerHTML = '';
+    await performSearch(query);
+});
+
+async function performSearch(query) {
+    // Show loading
+    loadingDiv.style.display = 'block';
+    document.getElementById('loadingQuery').textContent = query;
+    errorDiv.style.display = 'none';
+    resultsDiv.style.display = 'none';
+    searchBtn.disabled = true;
     
     try {
         const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        renderResults(data, query);
-    } catch (error) {
-        console.error('Search error:', error);
-        resultsDiv.innerHTML = `<div class="error-card"><div class="error-icon">⚠️</div><h3>Unable to fetch results</h3><p>${error.message}</p><button onclick="searchDebate()" class="retry-btn">Try Again</button></div>`;
+        
+        if (data.success) {
+            displayResults(data);
+        } else {
+            showError('Failed to fetch results. Please try again.');
+        }
+    } catch (err) {
+        console.error('Error:', err);
+        showError('Network error. Please check your connection and try again.');
     } finally {
-        loading.style.display = 'none';
+        loadingDiv.style.display = 'none';
+        searchBtn.disabled = false;
     }
 }
 
-function renderResults(data, query) {
-    const container = document.getElementById('results');
+function showError(message) {
+    errorDiv.textContent = `⚠️ ${message}`;
+    errorDiv.style.display = 'block';
+    resultsDiv.style.display = 'none';
+}
+
+function displayResults(data) {
+    let html = '';
     
-    // Format text with citation links
-    const formatWithCitations = (text, citations) => {
-        if (!text) return '<p>No information available.</p>';
-        let formatted = text;
-        formatted = formatted.replace(/\[(\d+)\]/g, (match, num) => {
-            const citation = citations?.find(c => c.id == num);
-            if (citation) {
-                return `<a href="${citation.url}" target="_blank" class="citation-link-inline" title="${citation.source}">[${num}]</a>`;
-            }
-            return match;
-        });
-        const paragraphs = formatted.split(/\n\n+/);
-        return paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
-    };
+    // ========================================
+    // RESEARCH SUMMARY SECTION (NO AI)
+    // ========================================
+    if (data.researchSummary && data.researchSummary.text) {
+        html += `
+            <div class="card summary-card">
+                <div class="card-header">
+                    <h2>📋 RESEARCH SUMMARY</h2>
+                    <span class="badge no-ai">No AI · Rule Based</span>
+                </div>
+                <div class="summary-content">
+                    ${formatSummaryText(data.researchSummary.text)}
+                </div>
+                <div class="card-footer">
+                    <small>📊 Analyzed ${data.researchSummary.sourcesUsed || 0} sources • ${data.researchSummary.method || 'Rule-based'}</small>
+                </div>
+            </div>
+        `;
+    }
     
-    const renderCitations = (citations) => {
-        if (!citations || citations.length === 0) return '<div class="no-citations">No citations found.</div>';
-        return `
-            <div class="citations-section">
-                <div class="section-header"><span class="section-icon">📋</span><span>SOURCE CITATIONS (${citations.length})</span></div>
+    // ========================================
+    // RESEARCH FINDINGS WITH CITATIONS
+    // ========================================
+    if (data.research && data.research.citations && data.research.citations.length > 0) {
+        html += `
+            <div class="card research-card">
+                <div class="card-header">
+                    <h2>📄 RESEARCH FINDINGS WITH CITATIONS</h2>
+                    <span class="badge">${data.research.governmentCount || 0} Government Sources</span>
+                </div>
+                <div class="research-text">
+                    <p>${escapeHtml(data.research.text || '')}</p>
+                </div>
                 <div class="citations-list">
-                    ${citations.map(c => `
-                        <div class="citation-item">
-                            <div class="citation-id">[${c.id}]</div>
-                            <div class="citation-content">
-                                <div class="citation-text">${c.text}</div>
-                                <div class="citation-source"><span class="source-label">${c.source}</span><a href="${c.url}" target="_blank" class="citation-link">🔗 View Source</a></div>
+                    <h3>Source Citations:</h3>
+                    ${data.research.citations.map(citation => `
+                        <div class="citation-item" id="citation-${citation.id}">
+                            <span class="citation-number">[${citation.id}]</span>
+                            <div class="citation-details">
+                                <p class="citation-text">${escapeHtml(citation.text)}</p>
+                                <a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="citation-source">
+                                    📎 ${escapeHtml(citation.source)}
+                                </a>
                             </div>
                         </div>
                     `).join('')}
                 </div>
             </div>
         `;
-    };
+    }
     
-    const renderAIAnalysis = (analysis) => {
-        if (!analysis || !analysis.text) return '';
-        return `
-            <div class="ai-card">
-                <div class="ai-header"><span class="ai-icon">🤖</span><span>AI ANALYSIS OF RESEARCH</span><span class="ai-badge">${analysis.modelUsed || 'AI'}</span></div>
-                <div class="ai-text">${analysis.text}</div>
-                ${analysis.disclaimer ? `<div class="ai-disclaimer">${analysis.disclaimer}</div>` : ''}
-                <div class="ai-footer">📊 Based on ${analysis.sourcesUsed || 0} research sources</div>
+    // ========================================
+    // NEWS ARTICLES
+    // ========================================
+    if (data.newsArticles && data.newsArticles.length > 0) {
+        html += `
+            <div class="card news-card-section">
+                <div class="card-header">
+                    <h2>📰 NEWS ARTICLES</h2>
+                </div>
+                <div class="news-grid">
+                    ${data.newsArticles.map(article => `
+                        <a href="${article.url}" target="_blank" rel="noopener noreferrer" class="news-item">
+                            <h3>${escapeHtml(article.title)}</h3>
+                            <p>${escapeHtml(article.description || '')}</p>
+                            <div class="news-meta">
+                                <span>${escapeHtml(article.source)}</span>
+                                ${article.date ? `<span>${article.date}</span>` : ''}
+                            </div>
+                        </a>
+                    `).join('')}
+                </div>
             </div>
         `;
-    };
+    }
     
-    const renderNews = (articles) => {
-        if (!articles || articles.length === 0) return '';
-        return `
-            <div class="news-section">
-                <div class="section-header"><span class="section-icon">📰</span><span>NEWS ARTICLES (${articles.length})</span></div>
-                <div class="news-list">${articles.map(a => `
-                    <div class="news-item">
-                        <a href="${a.url}" target="_blank" class="news-title">${a.title}</a>
-                        <div class="news-meta"><span class="news-source">📌 ${a.source}</span>${a.date ? `<span class="news-date">📅 ${a.date}</span>` : ''}</div>
-                        ${a.description ? `<div class="news-description">${a.description}...</div>` : ''}
-                    </div>
-                `).join('')}</div>
+    // ========================================
+    // VIDEO SOURCES
+    // ========================================
+    if (data.videoSources && data.videoSources.length > 0) {
+        html += `
+            <div class="card video-card-section">
+                <div class="card-header">
+                    <h2>🎥 VIDEO EXPLANATIONS</h2>
+                </div>
+                <div class="video-grid">
+                    ${data.videoSources.map(video => `
+                        <a href="${video.url}" target="_blank" rel="noopener noreferrer" class="video-item">
+                            ${video.thumbnail ? `<img src="${video.thumbnail}" alt="${escapeHtml(video.title)}">` : ''}
+                            <h3>${escapeHtml(video.title)}</h3>
+                            <p>${escapeHtml(video.channel)}</p>
+                        </a>
+                    `).join('')}
+                </div>
             </div>
         `;
-    };
+    }
     
-    const renderVideos = (videos) => {
-        if (!videos || videos.length === 0) return '';
-        return `
-            <div class="video-section">
-                <div class="section-header"><span class="section-icon">📺</span><span>VIDEOS (${videos.length})</span></div>
-                <div class="video-grid">${videos.map(v => `
-                    <div class="video-card" onclick="window.open('${v.url}', '_blank')">
-                        ${v.thumbnail ? `<img src="${v.thumbnail}">` : '<div class="video-placeholder">🎬</div>'}
-                        <div class="video-info"><div class="video-title">${v.title}</div><div class="video-channel">${v.channel}</div></div>
-                    </div>
-                `).join('')}</div>
+    // ========================================
+    // ALL SOURCES
+    // ========================================
+    if (data.allSources && data.allSources.length > 0) {
+        html += `
+            <div class="card sources-card">
+                <div class="card-header">
+                    <h2>🔗 ALL RESEARCH SOURCES</h2>
+                    <span class="badge">${data.allSources.length} Sources</span>
+                </div>
+                <div class="sources-list">
+                    ${data.allSources.map(source => `
+                        <a href="${source.url}" target="_blank" rel="noopener noreferrer" class="source-link">
+                            ${source.isGovernment ? '🏛️ ' : '📄 '}
+                            ${escapeHtml(source.title || source.url)}
+                            <span class="source-domain">${escapeHtml(source.source)}</span>
+                        </a>
+                    `).join('')}
+                </div>
             </div>
         `;
-    };
+    }
     
-    const renderAllSources = (sources) => {
-        if (!sources || sources.length === 0) return '';
-        return `
-            <div class="sources-section">
-                <div class="section-header"><span class="section-icon">📚</span><span>ALL SOURCES (${sources.length})</span></div>
-                <div class="sources-list">${sources.map((s, i) => `
-                    <div class="source-item"><span class="source-num">${i+1}.</span><span class="source-type">${s.isGovernment ? '🏛️' : s.type === 'archive' ? '📜' : '🌐'}</span><a href="${s.url}" target="_blank" class="source-link">${s.title || s.snippet?.substring(0, 80)}</a><span class="source-domain">${s.source}</span></div>
-                `).join('')}</div>
-            </div>
-        `;
-    };
+    resultsDiv.innerHTML = html;
+    resultsDiv.style.display = 'block';
     
-    let html = `
-        ${renderAIAnalysis(data.aiAnalysis)}
-        <div class="research-card">
-            <div class="research-header"><span class="research-icon">✅</span><span>RESEARCH FINDINGS WITH CITATIONS</span></div>
-            <div class="research-text">${formatWithCitations(data.research?.text, data.research?.citations)}</div>
-            <div class="research-footer"><span class="evidence-count">📊 ${data.research?.evidenceCount || 0} Sources (${data.research?.governmentCount || 0} Government)</span><span class="citation-note">💡 Click [numbers] to verify sources</span></div>
-        </div>
-        ${renderCitations(data.research?.citations)}
-        ${renderNews(data.newsArticles)}
-        ${renderVideos(data.videoSources)}
-        ${renderAllSources(data.allSources)}
-        <div class="stats-footer"><span>🔍 "${query}"</span><span>🏛️ ${data.allSources?.filter(s => s.isGovernment).length || 0} Gov</span><span>📜 ${data.allSources?.filter(s => s.type === "archive").length || 0} Archive</span><span>📰 ${data.newsArticles?.length || 0} News</span><span>📺 ${data.videoSources?.length || 0} Videos</span><span>📋 ${data.research?.citations?.length || 0} Citations</span></div>
-    `;
+    // Scroll to results
+    resultsDiv.scrollIntoView({ behavior: 'smooth' });
+}
+
+function formatSummaryText(text) {
+    // Convert plain text to HTML with proper formatting
+    let html = escapeHtml(text);
     
-    container.innerHTML = html;
+    // Convert line breaks to <br>
+    html = html.replace(/\n/g, '<br>');
+    
+    // Convert URLs to clickable links
+    html = html.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+    
+    // Format bold text
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    return html;
 }
 
-function setSearch(topic) {
-    document.getElementById('searchInput').value = topic;
-    searchDebate();
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
-
-// Styles
-const styles = `
-<style>
-.ai-card {
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(139, 92, 246, 0.05));
-    border: 2px solid rgba(139, 92, 246, 0.3);
-    border-radius: 24px;
-    padding: 28px;
-    margin-bottom: 28px;
-}
-.ai-header {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #a78bfa;
-    margin-bottom: 16px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid rgba(139, 92, 246, 0.3);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-.ai-icon { font-size: 1.3rem; }
-.ai-badge { font-size: 0.7rem; background: rgba(139,92,246,0.2); padding: 4px 12px; border-radius: 20px; color: #c4b5fd; margin-left: auto; }
-.ai-text { font-size: 1rem; line-height: 1.6; color: #e4e4e7; margin-bottom: 16px; }
-.ai-disclaimer { font-size: 0.7rem; color: #71717a; margin-top: 12px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; }
-.ai-footer { margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.7rem; color: #a1a1aa; }
-.research-card {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.05));
-    border: 2px solid rgba(16, 185, 129, 0.3);
-    border-radius: 24px;
-    padding: 28px;
-    margin-bottom: 28px;
-}
-.research-header { font-size: 1.2rem; font-weight: 700; color: #10b981; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid rgba(16,185,129,0.3); display: flex; align-items: center; gap: 10px; }
-.research-icon { font-size: 1.3rem; }
-.research-text { font-size: 1rem; line-height: 1.6; color: #e4e4e7; margin-bottom: 20px; }
-.research-text p { margin-bottom: 12px; }
-.citation-link-inline { display: inline-block; color: #fbbf24; text-decoration: none; font-weight: bold; padding: 0 2px; font-size: 0.85rem; }
-.citation-link-inline:hover { text-decoration: underline; color: #34d399; }
-.research-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.75rem; color: #a1a1aa; }
-.evidence-count { background: rgba(16,185,129,0.15); padding: 4px 12px; border-radius: 20px; }
-.citation-note { color: #71717a; }
-.section-header { font-size: 1rem; font-weight: 700; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px; }
-.section-icon { font-size: 1.1rem; }
-.citations-section, .news-section, .video-section, .sources-section {
-    background: rgba(20, 20, 35, 0.85);
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    padding: 24px;
-    margin-bottom: 24px;
-    border: 1px solid rgba(255,255,255,0.08);
-}
-.citations-list { display: flex; flex-direction: column; gap: 16px; max-height: 600px; overflow-y: auto; }
-.citation-item { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 14px 16px; display: flex; gap: 12px; border-left: 3px solid #10b981; }
-.citation-id { font-size: 0.9rem; font-weight: bold; color: #fbbf24; min-width: 40px; }
-.citation-content { flex: 1; }
-.citation-text { font-size: 0.85rem; color: #e4e4e7; margin-bottom: 8px; line-height: 1.4; }
-.citation-source { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-.source-label { font-size: 0.7rem; color: #fbbf24; }
-.citation-link { font-size: 0.7rem; color: #34d399; text-decoration: none; padding: 4px 10px; background: rgba(16,185,129,0.1); border-radius: 20px; }
-.news-list { display: flex; flex-direction: column; gap: 16px; max-height: 500px; overflow-y: auto; }
-.news-item { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 14px 16px; border-left: 3px solid #3b82f6; }
-.news-title { font-size: 0.9rem; font-weight: 600; color: #60a5fa; text-decoration: none; display: block; margin-bottom: 6px; }
-.news-title:hover { text-decoration: underline; }
-.news-meta { display: flex; gap: 16px; margin-bottom: 8px; }
-.news-source, .news-date { font-size: 0.65rem; color: #71717a; }
-.news-description { font-size: 0.75rem; color: #a1a1aa; }
-.video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-.video-card { background: rgba(0,0,0,0.4); border-radius: 14px; overflow: hidden; cursor: pointer; transition: transform 0.2s; }
-.video-card:hover { transform: translateY(-3px); }
-.video-card img { width: 100%; height: 140px; object-fit: cover; }
-.video-placeholder { width: 100%; height: 140px; background: #1a1a2e; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; }
-.video-info { padding: 10px; }
-.video-title { font-size: 0.8rem; font-weight: 600; color: #e4e4e7; margin-bottom: 4px; }
-.video-channel { font-size: 0.65rem; color: #71717a; }
-.sources-list { display: flex; flex-direction: column; gap: 8px; max-height: 500px; overflow-y: auto; }
-.source-item { font-size: 0.75rem; padding: 8px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); }
-.source-num { color: #71717a; min-width: 30px; font-size: 0.7rem; }
-.source-type { font-size: 0.8rem; min-width: 30px; }
-.source-link { color: #60a5fa; text-decoration: none; flex: 1; font-size: 0.8rem; }
-.source-link:hover { text-decoration: underline; }
-.source-domain { font-size: 0.65rem; color: #71717a; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.stats-footer { background: rgba(0,0,0,0.3); border-radius: 40px; padding: 12px 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; font-size: 0.7rem; color: #a1a1aa; }
-.stats-footer span { padding: 4px 10px; background: rgba(255,255,255,0.05); border-radius: 30px; }
-.no-citations { color: #71717a; text-align: center; padding: 20px; }
-.error-card { text-align: center; padding: 40px; background: rgba(239,68,68,0.1); border-radius: 24px; }
-.retry-btn { background: #6366f1; border: none; padding: 10px 24px; border-radius: 50px; color: white; font-weight: 600; cursor: pointer; margin-top: 16px; }
-@media (max-width: 768px) {
-    .ai-card, .research-card, .citations-section, .news-section, .video-section, .sources-section { padding: 16px; }
-    .stats-footer { gap: 10px; }
-    .citation-item { flex-direction: column; }
-    .citation-source { flex-direction: column; align-items: flex-start; }
-    .source-item { flex-wrap: wrap; }
-    .source-domain { max-width: none; white-space: normal; }
-    .research-footer { flex-direction: column; align-items: flex-start; }
-    .ai-header { flex-direction: column; align-items: flex-start; }
-    .ai-badge { margin-left: 0; }
-}
-</style>
-`;
-
-if (!document.querySelector('#debate-styles')) {
-    const styleTag = document.createElement('style');
-    styleTag.id = 'debate-styles';
-    styleTag.textContent = styles;
-    document.head.appendChild(styleTag);
-}
-
-window.searchDebate = searchDebate;
-window.setSearch = setSearch;
-
-document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') searchDebate();
-});
-
-console.log('DebateSpace loaded - AI analysis of research');
