@@ -1,249 +1,14 @@
-// Debate Fact Checker - Main Search Engine
-// Left, Centre, Right sources with auto-generation
+// ============================================
+// DEBATESPACE - EXACT LAYOUT FROM SCREENSHOT
+// Purple/Black theme with AI Analysis at top
+// ============================================
 
-// Source list with bias ratings
-const SOURCES = {
-    left: [
-        { name: "The Guardian", url: "https://www.theguardian.com", rss: "https://www.theguardian.com/world/rss" },
-        { name: "Vox", url: "https://www.vox.com", rss: "https://www.vox.com/rss/index.xml" },
-        { name: "The Nation", url: "https://www.thenation.com", rss: "https://www.thenation.com/rss" }
-    ],
-    centre: [
-        { name: "Reuters", url: "https://www.reuters.com", rss: "https://www.reuters.com/rss" },
-        { name: "Associated Press", url: "https://apnews.com", rss: "http://hosted2.ap.org/atom/APTopNews" },
-        { name: "BBC News", url: "https://www.bbc.com", rss: "http://feeds.bbci.co.uk/news/rss.xml" }
-    ],
-    right: [
-        { name: "Fox News", url: "https://www.foxnews.com", rss: "http://feeds.foxnews.com/foxnews/latest" },
-        { name: "National Review", url: "https://www.nationalreview.com", rss: "https://www.nationalreview.com/feed" },
-        { name: "The Hill", url: "https://thehill.com", rss: "https://thehill.com/feed" }
-    ]
-};
-
-// Pre-loaded rebuttal library (will grow over time)
-let rebuttalLibrary = {};
-
-// Load saved rebuttals from local storage or default
-function loadRebuttals() {
-    const saved = localStorage.getItem('debate_rebuttals');
-    if (saved) {
-        rebuttalLibrary = JSON.parse(saved);
-    } else {
-        // Default rebuttals for common topics
-        rebuttalLibrary = {
-            "inflation biden": {
-                topic: "Biden and inflation",
-                verdict: "Context dependent",
-                left: "Inflation peaked at 9.1% in June 2022, now down to 2.9% (Feb 2025) - Biden's policies worked",
-                centre: "Inflation rose due to global supply chain issues, then fell significantly",
-                right: "Prices are still 19% higher than when Biden took office - permanent damage",
-                sources: {
-                    left: "https://www.epi.org/blog/inflation-is-falling/",
-                    centre: "https://www.reuters.com/markets/us/us-inflation-data-2025-02-12/",
-                    right: "https://www.heritage.org/budget-and-spending/commentary/inflation-is-down-prices-are-not"
-                }
-            },
-            "trump economy": {
-                topic: "Trump economy performance",
-                verdict: "Mixed - pre-COVID strong, pandemic collapse",
-                left: "Trump inherited Obama's recovery, added $7.8 trillion to debt",
-                centre: "Low unemployment (3.5%) and stock market highs until COVID",
-                right: "Best economy in 50 years before pandemic shutdowns",
-                sources: {
-                    left: "https://www.cbpp.org/research/economy/trump-budget",
-                    centre: "https://www.bls.gov/charts/employment-situation/",
-                    right: "https://www.whitehouse.gov/trump-administration-accomplishments/"
-                }
-            },
-            "climate change": {
-                topic: "Climate change reality",
-                verdict: "Scientifically confirmed",
-                left: "Climate crisis is existential threat requiring immediate action",
-                centre: "97% of climate scientists agree on human-caused warming (IPCC)",
-                right: "Climate changes naturally; focus on adaptation, not panic",
-                sources: {
-                    left: "https://www.sierraclub.org/climate",
-                    centre: "https://www.ipcc.ch/report/ar6/wg1/",
-                    right: "https://www.climatechangereconsidered.org/"
-                }
-            }
-        };
-        saveRebuttals();
-    }
-}
-
-function saveRebuttals() {
-    localStorage.setItem('debate_rebuttals', JSON.stringify(rebuttalLibrary));
-}
-
-// Normalize search query
-function normalizeQuery(query) {
-    return query.toLowerCase().trim().replace(/[^\w\s]/g, '');
-}
-
-// Search for matching rebuttal
-function findMatchingRebuttal(query) {
-    const normalized = normalizeQuery(query);
-    
-    // Check exact match
-    if (rebuttalLibrary[normalized]) {
-        return rebuttalLibrary[normalized];
-    }
-    
-    // Check partial matches
-    for (const [key, value] of Object.entries(rebuttalLibrary)) {
-        if (normalized.includes(key) || key.includes(normalized)) {
-            return value;
-        }
-    }
-    
-    return null;
-}
-
-// Search RSS feeds for latest news
-async function searchRSS(topic, bias) {
-    const sourcesList = SOURCES[bias];
-    const results = [];
-    
-    for (const source of sourcesList) {
-        try {
-            // Use rss2json.com as free proxy (CORS friendly)
-            const proxyUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(source.rss)}`;
-            const response = await fetch(proxyUrl);
-            const data = await response.json();
-            
-            if (data.items) {
-                // Find articles matching topic
-                const matching = data.items.filter(item => 
-                    item.title.toLowerCase().includes(topic.toLowerCase()) ||
-                    (item.description && item.description.toLowerCase().includes(topic.toLowerCase()))
-                ).slice(0, 2);
-                
-                matching.forEach(item => {
-                    results.push({
-                        title: item.title,
-                        link: item.link,
-                        source: source.name,
-                        date: item.pubDate
-                    });
-                });
-            }
-        } catch (error) {
-            console.error(`Error fetching ${source.name}:`, error);
-        }
-    }
-    
-    return results;
-}
-
-// Generate new rebuttal using free APIs
-async function generateRebuttal(topic) {
-    console.log(`Generating new rebuttal for: ${topic}`);
-    
-    // Try Wikipedia for background
-    let wikipedia = null;
-    try {
-        const wikiResponse = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`);
-        wikipedia = await wikiResponse.json();
-    } catch (e) { console.log("Wikipedia fetch failed"); }
-    
-    // Try Google Fact Check API (no key needed for basic search)
-    let factCheck = null;
-    try {
-        const factResponse = await fetch(`https://factchecktools.googleapis.com/v1alpha1/claims:search?query=${encodeURIComponent(topic)}`);
-        factCheck = await factResponse.json();
-    } catch (e) { console.log("Fact check API failed"); }
-    
-    // Get live news from each bias
-    const leftNews = await searchRSS(topic, 'left');
-    const centreNews = await searchRSS(topic, 'centre');
-    const rightNews = await searchRSS(topic, 'right');
-    
-    // Create new rebuttal
-    const newRebuttal = {
-        topic: topic,
-        verdict: factCheck?.claims?.[0]?.textualRating || "Check multiple sources",
-        left: leftNews[0]?.title || wikipedia?.extract?.slice(0, 200) || "No left source found yet",
-        centre: centreNews[0]?.title || "Search our news sources for latest",
-        right: rightNews[0]?.title || "No right source found yet",
-        sources: {
-            left: leftNews[0]?.link || wikipedia?.content_urls?.desktop?.page || "#",
-            centre: centreNews[0]?.link || "#",
-            right: rightNews[0]?.link || "#",
-            factcheck: factCheck?.claims?.[0]?.claimReview?.[0]?.url || null
-        },
-        generated: new Date().toISOString()
-    };
-    
-    // Save to library
-    const key = normalizeQuery(topic);
-    rebuttalLibrary[key] = newRebuttal;
-    saveRebuttals();
-    
-    return newRebuttal;
-}
-
-// Display results
-function displayResults(rebuttal, liveNews) {
-    const resultsDiv = document.getElementById('results');
-    
-    resultsDiv.innerHTML = `
-        <div class="result-card left">
-            <div class="card-title">⬅️ LEFT VIEW</div>
-            ${rebuttal.verdict ? `<div class="verdict">📊 ${rebuttal.verdict}</div>` : ''}
-            <div class="claim">${rebuttal.left}</div>
-            <div class="source">🔗 Source: <a href="${rebuttal.sources.left}" target="_blank">${rebuttal.sources.left.split('/')[2] || 'Link'}</a></div>
-            <div class="rebuttal">
-                <h4>💬 Rebuttal Ready</h4>
-                <p>${rebuttal.left}</p>
-                <button class="copy-btn" onclick="copyToClipboard('${rebuttal.left.replace(/'/g, "\\'")}')">📋 Copy Rebuttal</button>
-            </div>
-        </div>
-        
-        <div class="result-card centre">
-            <div class="card-title">⚖️ CENTRE VIEW</div>
-            <div class="claim">${rebuttal.centre}</div>
-            <div class="source">🔗 Source: <a href="${rebuttal.sources.centre}" target="_blank">${rebuttal.sources.centre.split('/')[2] || 'Link'}</a></div>
-            ${rebuttal.sources.factcheck ? `<div class="source">✅ Fact Check: <a href="${rebuttal.sources.factcheck}" target="_blank">View Verification</a></div>` : ''}
-        </div>
-        
-        <div class="result-card right">
-            <div class="card-title">➡️ RIGHT VIEW</div>
-            <div class="claim">${rebuttal.right}</div>
-            <div class="source">🔗 Source: <a href="${rebuttal.sources.right}" target="_blank">${rebuttal.sources.right.split('/')[2] || 'Link'}</a></div>
-            <div class="rebuttal">
-                <h4>💬 Counter-Rebuttal</h4>
-                <p>${rebuttal.right}</p>
-                <button class="copy-btn" onclick="copyToClipboard('${rebuttal.right.replace(/'/g, "\\'")}')">📋 Copy Counterpoint</button>
-            </div>
-        </div>
-    `;
-    
-    // Add live news section if available
-    if (liveNews && (liveNews.left.length || liveNews.centre.length || liveNews.right.length)) {
-        resultsDiv.innerHTML += `
-            <div class="result-card" style="grid-column: 1/-1; background: #f0f9ff;">
-                <div class="card-title">📰 LIVE NEWS (Last 24 hours)</div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 15px;">
-                    ${liveNews.left.map(n => `<div><strong>⬅️ Left:</strong> <a href="${n.link}" target="_blank">${n.title.slice(0,80)}</a></div>`).join('')}
-                    ${liveNews.centre.map(n => `<div><strong>⚖️ Centre:</strong> <a href="${n.link}" target="_blank">${n.title.slice(0,80)}</a></div>`).join('')}
-                    ${liveNews.right.map(n => `<div><strong>➡️ Right:</strong> <a href="${n.link}" target="_blank">${n.title.slice(0,80)}</a></div>`).join('')}
-                </div>
-            </div>
-        `;
-    }
-}
-
-// Copy to clipboard function
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text);
-    alert('✅ Rebuttal copied to clipboard!');
-}
-
-// Main search function
 async function searchDebate() {
     const query = document.getElementById('searchInput').value;
-    if (!query.trim()) return;
+    if (!query.trim()) {
+        alert('Please enter a debate topic or question');
+        return;
+    }
     
     const loading = document.getElementById('loading');
     const resultsDiv = document.getElementById('results');
@@ -252,43 +17,365 @@ async function searchDebate() {
     resultsDiv.innerHTML = '';
     
     try {
-        // First, try to find existing rebuttal
-        let rebuttal = findMatchingRebuttal(query);
-        
-        // If not found, generate new one
-        if (!rebuttal) {
-            resultsDiv.innerHTML = '<div class="result-card" style="grid-column:1/-1; text-align:center;">🔍 New topic detected! Generating rebuttal from live sources... (This may take 10-15 seconds)</div>';
-            rebuttal = await generateRebuttal(query);
-        }
-        
-        // Get live news from RSS
-        const liveNews = {
-            left: await searchRSS(query, 'left'),
-            centre: await searchRSS(query, 'centre'),
-            right: await searchRSS(query, 'right')
-        };
-        
-        // Display everything
-        displayResults(rebuttal, liveNews);
-        
+        const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        renderResults(data, query);
     } catch (error) {
         console.error('Search error:', error);
-        resultsDiv.innerHTML = `
-            <div class="result-card" style="grid-column:1/-1; text-align:center; background:#fee;">
-                <h3>⚠️ Error fetching results</h3>
-                <p>Please try again. Check your internet connection.</p>
-                <p style="font-size:0.8rem;">Error: ${error.message}</p>
-            </div>
-        `;
+        resultsDiv.innerHTML = `<div class="error-card"><div class="error-icon">⚠️</div><h3>Unable to fetch results</h3><p>${error.message}</p><button onclick="searchDebate()" class="retry-btn">Try Again</button></div>`;
     } finally {
         loading.style.display = 'none';
     }
 }
 
-// Allow Enter key to search
-document.getElementById('searchInput').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') searchDebate();
-});
+function renderResults(data, query) {
+    const container = document.getElementById('results');
+    
+    // Format text with clickable citation links
+    const formatWithCitations = (text, citations) => {
+        if (!text) return '<p>No information available.</p>';
+        let formatted = text;
+        formatted = formatted.replace(/\[(\d+)\]/g, (match, num) => {
+            const citation = citations?.find(c => c.id == num);
+            if (citation) {
+                return `<a href="${citation.url}" target="_blank" class="citation-link" title="${citation.source}">[${num}]</a>`;
+            }
+            return match;
+        });
+        const paragraphs = formatted.split(/\n\n+/);
+        return paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+    };
+    
+    // AI ANALYSIS SECTION (Top)
+    const aiHtml = `
+        <div class="ai-card">
+            <div class="ai-header">
+                <span class="ai-icon">🤖</span>
+                <span>AI ANALYSIS OF RESEARCH</span>
+            </div>
+            <div class="ai-text">${data.aiAnalysis?.text || 'AI analysis temporarily unavailable. Please review the research sources above.'}</div>
+            <div class="ai-footer">📊 Based on ${data.aiAnalysis?.sourcesUsed || data.research?.evidenceCount || 0} research sources</div>
+        </div>
+    `;
+    
+    // RESEARCH FINDINGS SECTION
+    const researchHtml = `
+        <div class="research-card">
+            <div class="research-header">
+                <span class="research-icon">✅</span>
+                <span>RESEARCH FINDINGS WITH CITATIONS</span>
+            </div>
+            <div class="research-text">
+                ${formatWithCitations(data.research?.text, data.research?.citations)}
+            </div>
+            <div class="research-footer">
+                <span>📊 ${data.research?.evidenceCount || 0} sources (${data.research?.governmentCount || 0} government sources)</span>
+            </div>
+        </div>
+    `;
+    
+    // CITATIONS SECTION
+    const citationsHtml = data.research?.citations?.length > 0 ? `
+        <div class="citations-card">
+            <div class="citations-header">
+                <span class="citations-icon">📋</span>
+                <span>SOURCE CITATIONS (${data.research.citations.length})</span>
+            </div>
+            <div class="citations-list">
+                ${data.research.citations.map(c => `
+                    <div class="citation-item">
+                        <div class="citation-id">[${c.id}]</div>
+                        <div class="citation-content">
+                            <div class="citation-text">${c.text}</div>
+                            <div class="citation-source">
+                                <span class="source-label">${c.source}</span>
+                                <a href="${c.url}" target="_blank" class="source-link">🔗 View Original Source</a>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    ` : '';
+    
+    // NEWS SECTION
+    const newsHtml = data.newsArticles?.length > 0 ? `
+        <div class="news-card">
+            <div class="news-header">
+                <span class="news-icon">📰</span>
+                <span>NEWS ARTICLES (${data.newsArticles.length})</span>
+            </div>
+            <div class="news-list">
+                ${data.newsArticles.map(a => `
+                    <div class="news-item">
+                        <a href="${a.url}" target="_blank" class="news-title">${a.title}</a>
+                        <div class="news-meta">📌 ${a.source}${a.date ? ` • 📅 ${a.date}` : ''}</div>
+                        ${a.description ? `<div class="news-desc">${a.description}...</div>` : ''}
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    ` : '';
+    
+    // VIDEOS SECTION
+    const videosHtml = data.videoSources?.length > 0 ? `
+        <div class="videos-card">
+            <div class="videos-header">
+                <span class="videos-icon">📺</span>
+                <span>VIDEO EXPLANATIONS (${data.videoSources.length})</span>
+            </div>
+            <div class="videos-grid">
+                ${data.videoSources.map(v => `
+                    <div class="video-item" onclick="window.open('${v.url}', '_blank')">
+                        ${v.thumbnail ? `<img src="${v.thumbnail}">` : '<div class="video-placeholder">🎬</div>'}
+                        <div class="video-info">
+                            <div class="video-title">${v.title}</div>
+                            <div class="video-channel">${v.channel}</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    ` : '';
+    
+    // ALL SOURCES SECTION
+    const sourcesHtml = data.allSources?.length > 0 ? `
+        <div class="sources-card">
+            <div class="sources-header">
+                <span class="sources-icon">📚</span>
+                <span>ALL RESEARCH SOURCES (${data.allSources.length})</span>
+            </div>
+            <div class="sources-list">
+                ${data.allSources.map((s, i) => `
+                    <div class="source-item">
+                        <span class="source-num">${i+1}.</span>
+                        <span class="source-type">${s.isGovernment ? '🏛️' : s.type === 'archive' ? '📜' : '🌐'}</span>
+                        <a href="${s.url}" target="_blank" class="source-link">${s.title || s.snippet?.substring(0, 80)}</a>
+                        <span class="source-domain">${s.source}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    ` : '';
+    
+    // STATS FOOTER
+    const statsHtml = `
+        <div class="stats-footer">
+            <span>🔍 "${query}"</span>
+            <span>🏛️ ${data.allSources?.filter(s => s.isGovernment).length || 0} Government Sources</span>
+            <span>📜 ${data.allSources?.filter(s => s.type === "archive").length || 0} Archives</span>
+            <span>📰 ${data.newsArticles?.length || 0} News Articles</span>
+            <span>📺 ${data.videoSources?.length || 0} Videos</span>
+            <span>📋 ${data.research?.citations?.length || 0} Citations</span>
+        </div>
+    `;
+    
+    container.innerHTML = aiHtml + researchHtml + citationsHtml + newsHtml + videosHtml + sourcesHtml + statsHtml;
+}
 
-// Initialize on page load
-loadRebuttals();
+function setSearch(topic) {
+    document.getElementById('searchInput').value = topic;
+    searchDebate();
+}
+
+// Purple/Black Theme Styles
+const styles = `
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f0f1a; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; color: #e4e4e7; line-height: 1.5; }
+.main-container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+/* Header */
+.site-header { text-align: center; margin-bottom: 48px; }
+.logo-badge { font-size: 3rem; margin-bottom: 8px; display: inline-block; animation: float 3s ease-in-out infinite; }
+@keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-8px); } }
+h1 { font-size: 3rem; font-weight: 700; background: linear-gradient(135deg, #fff 0%, #a78bfa 50%, #60a5fa 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+h1 span { background: linear-gradient(135deg, #a78bfa 0%, #c084fc 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tagline { color: #a1a1aa; text-align: center; margin-bottom: 40px; }
+
+/* Search */
+.search-container { display: flex; gap: 10px; max-width: 700px; margin: 0 auto; background: rgba(24,24,37,0.9); border-radius: 60px; padding: 4px 4px 4px 20px; border: 1px solid rgba(255,255,255,0.1); }
+#searchInput { flex: 1; background: transparent; border: none; padding: 18px 0; font-size: 1rem; color: #fff; outline: none; }
+#searchBtn { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border: none; padding: 12px 32px; border-radius: 50px; color: white; font-weight: 600; cursor: pointer; }
+.search-tips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 20px; }
+.tip-btn { background: rgba(39,39,52,0.8); border: 1px solid rgba(255,255,255,0.08); padding: 6px 16px; border-radius: 50px; color: #d4d4d8; cursor: pointer; }
+.loading { text-align: center; padding: 60px; }
+.spinner { width: 50px; height: 50px; border: 3px solid rgba(99,102,241,0.2); border-top: 3px solid #6366f1; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* AI Card - Top */
+.ai-card {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(139, 92, 246, 0.05));
+    border: 2px solid rgba(139, 92, 246, 0.4);
+    border-radius: 24px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+.ai-header {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #a78bfa;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(139, 92, 246, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.ai-icon { font-size: 1.2rem; }
+.ai-text { font-size: 1rem; line-height: 1.6; color: #e4e4e7; margin-bottom: 16px; }
+.ai-footer { font-size: 0.75rem; color: #a1a1aa; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); }
+
+/* Research Card */
+.research-card {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.05));
+    border: 2px solid rgba(16, 185, 129, 0.4);
+    border-radius: 24px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+.research-header {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #10b981;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(16, 185, 129, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.research-icon { font-size: 1.2rem; }
+.research-text { font-size: 1rem; line-height: 1.6; color: #e4e4e7; margin-bottom: 16px; }
+.research-text p { margin-bottom: 12px; }
+.citation-link { display: inline-block; color: #fbbf24; text-decoration: none; font-weight: bold; padding: 0 2px; }
+.citation-link:hover { text-decoration: underline; color: #34d399; }
+.research-footer { font-size: 0.75rem; color: #a1a1aa; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); }
+
+/* Citations Card */
+.citations-card {
+    background: rgba(20, 20, 35, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+.citations-header {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fbbf24;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.citations-list { display: flex; flex-direction: column; gap: 16px; max-height: 500px; overflow-y: auto; }
+.citation-item { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 14px; display: flex; gap: 12px; border-left: 3px solid #10b981; }
+.citation-id { font-size: 0.9rem; font-weight: bold; color: #fbbf24; min-width: 40px; }
+.citation-content { flex: 1; }
+.citation-text { font-size: 0.85rem; color: #e4e4e7; margin-bottom: 8px; line-height: 1.4; }
+.citation-source { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 0.7rem; }
+.source-label { color: #fbbf24; }
+.source-link { color: #34d399; text-decoration: none; padding: 4px 10px; background: rgba(16,185,129,0.1); border-radius: 20px; }
+.source-link:hover { background: rgba(16,185,129,0.2); text-decoration: underline; }
+
+/* News Card */
+.news-card {
+    background: rgba(20, 20, 35, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+.news-header {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #3b82f6;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.news-list { display: flex; flex-direction: column; gap: 12px; max-height: 400px; overflow-y: auto; }
+.news-item { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 12px; border-left: 3px solid #3b82f6; }
+.news-title { font-size: 0.9rem; font-weight: 600; color: #60a5fa; text-decoration: none; display: block; margin-bottom: 4px; }
+.news-title:hover { text-decoration: underline; }
+.news-meta { font-size: 0.65rem; color: #71717a; margin-bottom: 6px; }
+.news-desc { font-size: 0.75rem; color: #a1a1aa; }
+
+/* Videos Card */
+.videos-card {
+    background: rgba(20, 20, 35, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+.videos-header {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #ef4444;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.videos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.video-item { background: rgba(0,0,0,0.4); border-radius: 12px; overflow: hidden; cursor: pointer; transition: transform 0.2s; }
+.video-item:hover { transform: translateY(-3px); }
+.video-item img { width: 100%; height: 130px; object-fit: cover; }
+.video-placeholder { width: 100%; height: 130px; background: #1a1a2e; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+.video-info { padding: 10px; }
+.video-title { font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; }
+.video-channel { font-size: 0.65rem; color: #71717a; }
+
+/* Sources Card */
+.sources-card {
+    background: rgba(20, 20, 35, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+.sources-header {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #a78bfa;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.sources-list { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
+.source-item { font-size: 0.75rem; padding: 8px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.source-num { color: #71717a; min-width: 30px; }
+.source-type { font-size: 0.8rem; min-width: 30px; }
+.source-link { color: #60a5fa; text-decoration: none; flex: 1; }
+.source-link:hover { text-decoration: underline; }
+.source-domain { font-size: 0.65rem; color: #71717a; }
+
+/* Stats Footer */
+.stats-footer {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 40px;
+    padding: 12px 20px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+    font-size: 0.7rem;
+    color: #a1a1aa;
+    margin-top: 20px;
+}
+.stats-footer span { padding: 4px 10px; background: rgba(255,255,255,0.05); border-radius: 30px; }
+
+/* Footer
