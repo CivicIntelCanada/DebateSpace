@@ -1,375 +1,408 @@
-// api/search.js
-// Vercel Serverless Function for DebateSpace
-// Handles deep research across government sources, news, and YouTube
-
-const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
-const GNEWS_API_KEY = process.env.GNEWS_API_KEY;
-const GOOGLE_SEARCH_CX = process.env.GOOGLE_SEARCH_CX_NEWS;
-const GOOGLE_API_KEY = process.env.FACTCHECK_API_KEY;
+// ============================================
+// DEBATESPACE - COMPLETE API FOR THIS LAYOUT
+// ============================================
 
 export default async function handler(req, res) {
-    // Handle CORS for development
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-    
-    // Get query from GET or POST
-    const query = req.method === 'GET' ? req.query.query : req.body?.query;
-    
+    const { query } = req.query;
     if (!query || query.trim() === '') {
-        return res.status(400).json({
-            success: false,
-            error: "Missing query parameter",
-            message: "Please provide a search query"
-        });
+        return res.status(400).json({ error: 'No query provided' });
     }
     
+    console.log(`\n🔍 RESEARCH: "${query}"`);
+    
     try {
-        console.log(`🔍 Researching: "${query}"`);
+        const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
+        let allResults = [];
         
-        // Run all searches in parallel for speed
-        const [researchResult, newsResult, videosResult, govResult] = await Promise.allSettled([
-            performTavilySearch(query),
-            fetchGNews(query),
-            fetchYouTubeVideos(query),
-            searchGovernmentSources(query)
-        ]);
+        // ========================================
+        // SEARCH ALL CX ENGINES
+        // ========================================
+        const cxEngines = [
+            { name: 'North America', cx: process.env.GOOGLE_SEARCH_CX_NA },
+            { name: 'Asia Pacific', cx: process.env.GOOGLE_SEARCH_CX_ASIA },
+            { name: 'Europe', cx: process.env.GOOGLE_SEARCH_CX_EU },
+            { name: 'Think Tanks', cx: process.env.GOOGLE_SEARCH_CX_TT },
+            { name: 'News', cx: process.env.GOOGLE_SEARCH_CX_NEWS }
+        ];
         
-        // Process research results
-        let allSources = [];
-        let answerText = "";
-        
-        if (researchResult.status === 'fulfilled' && researchResult.value) {
-            allSources.push(...researchResult.value.sources);
-            answerText = researchResult.value.answer || "";
+        for (const engine of cxEngines) {
+            if (apiKey && engine.cx) {
+                const results = await searchCX(apiKey, engine.cx, query);
+                allResults.push(...results);
+                console.log(`${engine.name}: ${results.length} results`);
+            }
         }
         
-        // Process government sources
-        if (govResult.status === 'fulfilled' && govResult.value) {
-            allSources.push(...govResult.value);
+        // ========================================
+        // SEARCH GOVERNMENT DOMAINS
+        // ========================================
+        const govDomains = ['.gov', '.gc.ca', '.gov.uk', '.mil'];
+        for (const domain of govDomains) {
+            if (apiKey) {
+                const results = await searchGovDomain(apiKey, domain, query);
+                allResults.push(...results);
+                console.log(`${domain}: ${results.length} results`);
+            }
         }
         
-        // Process news
-        let newsArticles = [];
-        if (newsResult.status === 'fulfilled' && newsResult.value) {
-            newsArticles = newsResult.value;
+        // ========================================
+        // SEARCH ARCHIVES
+        // ========================================
+        const archiveResults = await searchArchives(query);
+        allResults.push(...archiveResults);
+        console.log(`Archives: ${archiveResults.length} results`);
+        
+        // ========================================
+        // TAVILY SEARCH
+        // ========================================
+        const tavilyResults = await tavilySearch(query);
+        allResults.push(...tavilyResults);
+        console.log(`Tavily: ${tavilyResults.length} results`);
+        
+        // ========================================
+        // REMOVE DUPLICATES
+        // ========================================
+        const uniqueResults = [];
+        const seenUrls = new Set();
+        for (const result of allResults) {
+            if (!seenUrls.has(result.url)) {
+                seenUrls.add(result.url);
+                uniqueResults.push(result);
+            }
         }
         
-        // Process videos
-        let videos = [];
-        if (videosResult.status === 'fulfilled' && videosResult.value) {
-            videos = videosResult.value;
-        }
+        console.log(`\n📊 TOTAL SOURCES: ${uniqueResults.length}`);
+        console.log(`   Government: ${uniqueResults.filter(r => r.isGovernment).length}`);
         
-        // Generate final answer if Tavily didn't provide one
-        if (!answerText) {
-            answerText = generateAnswerFromSources(query, allSources);
-        }
+        // ========================================
+        // BUILD RESEARCH ANSWER
+        // ========================================
+        const researchAnswer = buildResearchAnswer(query, uniqueResults);
         
-        // Return combined results
+        // ========================================
+        // GENERATE AI ANALYSIS
+        // ========================================
+        const aiAnalysis = await generateAIAnalysis(query, uniqueResults);
+        
+        // ========================================
+        // GET SUPPLEMENTAL CONTENT
+        // ========================================
+        const newsResults = await getNews(query);
+        const videoResults = await getVideos(query);
+        
         return res.status(200).json({
             success: true,
             query: query,
-            timestamp: new Date().toISOString(),
-            answer: answerText,
-            sources: allSources.slice(0, 15), // Limit to 15 sources
-            news: newsArticles.slice(0, 6),
-            videos: videos.slice(0, 4),
-            totalSources: allSources.length,
-            governmentSources: allSources.filter(s => s.type === 'government').length
+            research: researchAnswer,
+            aiAnalysis: aiAnalysis,
+            newsArticles: newsResults,
+            videoSources: videoResults,
+            allSources: uniqueResults.slice(0, 40),
+            timestamp: new Date().toISOString()
         });
         
     } catch (error) {
-        console.error("Search error:", error);
-        
-        // Return fallback data so UI still works
+        console.error('ERROR:', error);
         return res.status(200).json({
             success: true,
             query: query,
-            timestamp: new Date().toISOString(),
-            answer: generateFallbackAnswer(query),
-            sources: generateFallbackSources(query),
-            news: generateFallbackNews(query),
-            videos: generateFallbackVideos(query),
-            totalSources: 8,
-            governmentSources: 5,
-            isFallback: true
+            research: { text: `Research completed. Found sources about "${query}".`, citations: [], evidenceCount: 0 },
+            aiAnalysis: { text: `AI analysis temporarily unavailable. Please review the research sources above.`, sourcesUsed: 0 },
+            newsArticles: [],
+            videoSources: [],
+            allSources: []
         });
     }
 }
 
 // ============================================
-// TAVILY SEARCH (Deep research with citations)
+// SEARCH FUNCTIONS
 // ============================================
-async function performTavilySearch(query) {
-    if (!TAVILY_API_KEY || TAVILY_API_KEY === '') {
-        console.log("No Tavily API key, using fallback");
-        return null;
-    }
-    
+async function searchCX(apiKey, cx, query) {
+    const results = [];
     try {
-        const response = await fetch('https://api.tavily.com/search', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${TAVILY_API_KEY}`
-            },
-            body: JSON.stringify({
-                query: query,
-                search_depth: "advanced",
-                include_answer: true,
-                include_raw_content: false,
-                max_results: 12
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error(`Tavily API error: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        // Format sources with proper attribution
-        const sources = (data.results || []).map(result => ({
-            title: result.title || "Source",
-            url: result.url,
-            snippet: result.content?.substring(0, 300) || "",
-            type: determineSourceType(result.url, result.title),
-            score: result.score || 0
-        }));
-        
-        return {
-            answer: data.answer || "",
-            sources: sources
-        };
-        
-    } catch (error) {
-        console.error("Tavily search failed:", error.message);
-        return null;
-    }
-}
-
-// ============================================
-// GOOGLE NEWS SEARCH (via Custom Search)
-// ============================================
-async function fetchGNews(query) {
-    // Try GNews first if key exists
-    if (GNEWS_API_KEY && GNEWS_API_KEY !== '') {
-        try {
-            const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&country=us&max=8&apikey=${GNEWS_API_KEY}`;
-            const response = await fetch(url);
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.articles && data.articles.length > 0) {
-                    return data.articles.slice(0, 6).map(article => ({
-                        title: article.title,
-                        link: article.url,
-                        source: article.source?.name || "News Source",
-                        publishedAt: article.publishedAt,
-                        image: article.image
-                    }));
+        const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&num=8`;
+        const response = await fetch(url);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.items) {
+                for (const item of data.items) {
+                    results.push({
+                        type: "cx",
+                        source: new URL(item.link).hostname.replace('www.', ''),
+                        title: item.title,
+                        url: item.link,
+                        snippet: item.snippet,
+                        isGovernment: item.link.includes('.gov') || item.link.includes('.gc.ca')
+                    });
                 }
             }
-        } catch (e) {
-            console.log("GNews failed, trying Google News");
         }
-    }
-    
-    // Fallback to Google Custom Search
-    if (GOOGLE_API_KEY && GOOGLE_SEARCH_CX) {
+    } catch (error) {}
+    return results;
+}
+
+async function searchGovDomain(apiKey, domain, query) {
+    const results = [];
+    const cx = process.env.GOOGLE_SEARCH_CX_NA;
+    if (!cx) return results;
+    try {
+        const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&siteSearch=${domain}&siteSearchFilter=i&num=6`;
+        const response = await fetch(url);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.items) {
+                for (const item of data.items) {
+                    results.push({
+                        type: "government",
+                        source: domain,
+                        title: item.title,
+                        url: item.link,
+                        snippet: item.snippet,
+                        isGovernment: true
+                    });
+                }
+            }
+        }
+    } catch (error) {}
+    return results;
+}
+
+async function searchArchives(query) {
+    const results = [];
+    const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
+    const cx = process.env.GOOGLE_SEARCH_CX_NA;
+    if (!apiKey || !cx) return results;
+    const archives = ['archive.org', 'archives.gov', 'census.gov', 'data.gov'];
+    for (const archive of archives) {
         try {
-            const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query + " news")}&key=${GOOGLE_API_KEY}&cx=${GOOGLE_SEARCH_CX}&num=6`;
+            const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&siteSearch=${archive}&siteSearchFilter=i&num=4`;
             const response = await fetch(url);
-            
             if (response.ok) {
                 const data = await response.json();
                 if (data.items) {
-                    return data.items.map(item => ({
-                        title: item.title,
-                        link: item.link,
-                        source: item.displayLink || "News",
-                        snippet: item.snippet
-                    }));
+                    for (const item of data.items) {
+                        results.push({
+                            type: "archive",
+                            source: archive,
+                            title: item.title,
+                            url: item.link,
+                            snippet: item.snippet,
+                            isGovernment: true
+                        });
+                    }
                 }
             }
-        } catch (e) {
-            console.log("Google News search failed");
-        }
+        } catch (error) {}
     }
-    
+    return results;
+}
+
+async function tavilySearch(query) {
+    const apiKey = process.env.TAVILY_API_KEY;
+    const results = [];
+    if (!apiKey) return results;
+    try {
+        const response = await fetch('https://api.tavily.com/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: apiKey, query: query, search_depth: 'advanced', max_results: 8 })
+        });
+        if (response.ok) {
+            const data = await response.json();
+            if (data.results) {
+                for (const result of data.results) {
+                    results.push({
+                        type: "web",
+                        source: new URL(result.url).hostname.replace('www.', ''),
+                        title: result.title,
+                        url: result.url,
+                        snippet: result.content?.substring(0, 400),
+                        isGovernment: result.url.includes('.gov')
+                    });
+                }
+            }
+        }
+    } catch (error) {}
+    return results;
+}
+
+async function getNews(query) {
+    const apiKey = process.env.GNEWS_API_KEY;
+    if (!apiKey) return [];
+    try {
+        const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=6&token=${apiKey}`;
+        const response = await fetch(url);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.articles) {
+                return data.articles.map(article => ({
+                    title: article.title,
+                    url: article.url,
+                    source: new URL(article.url).hostname.replace('www.', ''),
+                    date: article.publishedAt?.split('T')[0],
+                    description: article.description?.substring(0, 150)
+                }));
+            }
+        }
+    } catch (error) {}
+    return [];
+}
+
+async function getVideos(query) {
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    if (!apiKey) return [];
+    try {
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=5&key=${apiKey}`;
+        const response = await fetch(url);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.items) {
+                return data.items.map(item => ({
+                    title: item.snippet.title,
+                    url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
+                    channel: item.snippet.channelTitle,
+                    thumbnail: item.snippet.thumbnails?.medium?.url || ''
+                }));
+            }
+        }
+    } catch (error) {}
     return [];
 }
 
 // ============================================
-// YOUTUBE SEARCH
+// BUILD RESEARCH ANSWER
 // ============================================
-async function fetchYouTubeVideos(query) {
-    if (!YOUTUBE_API_KEY || YOUTUBE_API_KEY === '') {
-        return [];
+function buildResearchAnswer(query, sources) {
+    const govSources = sources.filter(s => s.isGovernment === true);
+    const otherSources = sources.filter(s => !s.isGovernment);
+    const sortedSources = [...govSources, ...otherSources];
+    
+    if (sortedSources.length === 0) {
+        return {
+            text: `No sources found for "${query}". Try different keywords.`,
+            citations: [],
+            evidenceCount: 0,
+            governmentCount: 0
+        };
+    }
+    
+    const citations = [];
+    let citationId = 1;
+    let fullText = `Found ${sortedSources.length} sources (${govSources.length} government sources) about "${query}": `;
+    
+    for (const source of sortedSources.slice(0, 15)) {
+        let quote = source.snippet || source.title || '';
+        quote = quote.replace(/\s+/g, ' ').trim();
+        
+        if (quote.length > 40 && !quote.toLowerCase().includes('search')) {
+            fullText += `"${quote.substring(0, 350)}" [${citationId}] `;
+            
+            citations.push({
+                id: citationId,
+                text: quote.length > 450 ? quote.substring(0, 450) + '...' : quote,
+                source: source.source,
+                url: source.url,
+                title: source.title
+            });
+            citationId++;
+        }
+    }
+    
+    fullText += ` Click any [number] to verify the source.`;
+    
+    return {
+        text: fullText,
+        citations: citations,
+        evidenceCount: sortedSources.length,
+        governmentCount: govSources.length
+    };
+}
+
+// ============================================
+// GENERATE AI ANALYSIS
+// ============================================
+async function generateAIAnalysis(query, sources) {
+    const groqKey = process.env.GROQ_API_KEY;
+    
+    if (!groqKey) {
+        return {
+            text: `AI analysis temporarily unavailable. Please review the ${sources.length} research sources above for information about "${query}".`,
+            sourcesUsed: sources.length,
+            modelUsed: "Groq API key missing"
+        };
+    }
+    
+    if (sources.length === 0) {
+        return {
+            text: `No research sources were found for "${query}". Please try different keywords.`,
+            sourcesUsed: 0,
+            modelUsed: "No sources"
+        };
+    }
+    
+    // Prepare source excerpts
+    const topSources = sources.slice(0, 10);
+    const sourceTexts = [];
+    
+    for (const source of topSources) {
+        let content = source.snippet || source.title || '';
+        content = content.replace(/\s+/g, ' ').trim();
+        if (content.length > 50) {
+            const sourceLabel = source.isGovernment ? `[GOVERNMENT: ${source.source}]` : `[SOURCE: ${source.source}]`;
+            sourceTexts.push(`${sourceLabel} ${content.substring(0, 350)}`);
+        }
     }
     
     try {
-        const searchQuery = `${query} explanation documentary`;
-        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=5&q=${encodeURIComponent(searchQuery)}&key=${YOUTUBE_API_KEY}&type=video&videoDuration=medium`;
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${groqKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    {
+                        role: 'system',
+                        content: `You are a neutral research analyst. Summarize what the provided research sources say. ONLY use information from the sources. Keep your answer concise (150-250 words).`
+                    },
+                    {
+                        role: 'user',
+                        content: `User Question: ${query}\n\nResearch Sources:\n${sourceTexts.join('\n\n')}\n\nBased ONLY on the research sources above, provide a clear answer to the user's question.`
+                    }
+                ],
+                temperature: 0.1,
+                max_tokens: 500
+            })
+        });
         
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-            throw new Error(`YouTube API error: ${response.status}`);
+        if (response.ok) {
+            const data = await response.json();
+            const analysis = data.choices?.[0]?.message?.content;
+            
+            return {
+                text: analysis || `Based on ${sources.length} sources, the research findings are presented above.`,
+                sourcesUsed: sources.length,
+                modelUsed: "Groq Llama 3.3"
+            };
+        } else {
+            return {
+                text: `AI analysis temporarily unavailable. Please review the ${sources.length} research sources above for information about "${query}".`,
+                sourcesUsed: sources.length,
+                modelUsed: "API error"
+            };
         }
-        
-        const data = await response.json();
-        
-        return (data.items || []).map(item => ({
-            id: item.id.videoId,
-            title: item.snippet.title,
-            channel: item.snippet.channelTitle,
-            thumbnail: item.snippet.thumbnails?.medium?.url,
-            publishedAt: item.snippet.publishedAt,
-            url: `https://www.youtube.com/watch?v=${item.id.videoId}`
-        }));
         
     } catch (error) {
-        console.error("YouTube search failed:", error.message);
-        return [];
+        console.error('AI Analysis error:', error.message);
+        return {
+            text: `AI analysis temporarily unavailable. Please review the ${sources.length} research sources above for information about "${query}".`,
+            sourcesUsed: sources.length,
+            modelUsed: "Error"
+        };
     }
-}
-
-// ============================================
-// GOVERNMENT SOURCES SEARCH
-// ============================================
-async function searchGovernmentSources(query) {
-    const govDomains = ['.gov', '.mil', '.edu'];
-    const sources = [];
-    
-    // Try Google Custom Search with site restriction
-    if (GOOGLE_API_KEY && GOOGLE_SEARCH_CX) {
-        for (const domain of govDomains) {
-            try {
-                const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)} site:${domain}&key=${GOOGLE_API_KEY}&cx=${GOOGLE_SEARCH_CX}&num=3`;
-                const response = await fetch(url);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.items) {
-                        data.items.forEach(item => {
-                            sources.push({
-                                title: item.title,
-                                url: item.link,
-                                snippet: item.snippet,
-                                type: 'government',
-                                domain: domain
-                            });
-                        });
-                    }
-                }
-            } catch (e) {
-                console.log(`Search on ${domain} failed`);
-            }
-        }
-    }
-    
-    return sources;
-}
-
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
-function determineSourceType(url, title) {
-    const lowerUrl = (url || "").toLowerCase();
-    const lowerTitle = (title || "").toLowerCase();
-    
-    if (lowerUrl.includes('.gov') || lowerTitle.includes('government')) return 'government';
-    if (lowerUrl.includes('.edu')) return 'academic';
-    if (lowerUrl.includes('.mil')) return 'military';
-    if (lowerTitle.includes('report') || lowerTitle.includes('official')) return 'official';
-    return 'web';
-}
-
-function generateAnswerFromSources(query, sources) {
-    const govCount = sources.filter(s => s.type === 'government').length;
-    const academicCount = sources.filter(s => s.type === 'academic').length;
-    
-    let answer = `Based on ${sources.length} verified sources (${govCount} government, ${academicCount} academic), research on "${query}" shows:\n\n`;
-    
-    if (sources.length > 0) {
-        const topSources = sources.slice(0, 3);
-        topSources.forEach((source, idx) => {
-            answer += `${idx + 1}. ${source.title || "Source"} - ${source.snippet || "Official documentation available"}\n`;
-        });
-        answer += `\nClick any [citation number] to verify the original source directly.`;
-    } else {
-        answer = `Comprehensive research on "${query}" is available from government archives. See citations below for official documentation and verified sources.`;
-    }
-    
-    return answer;
-}
-
-function generateFallbackAnswer(query) {
-    const lowerQuery = query.toLowerCase();
-    
-    if (lowerQuery.includes("ice") && lowerQuery.includes("training")) {
-        return `ICE agents must complete a 22-27 week training program at the Federal Law Enforcement Training Center (FLETC) in Glynco, Georgia. Training includes 4 written examinations requiring a 70% or better to pass, physical fitness tests, and specialized immigration law instruction. [1][2][3]`;
-    }
-    
-    if (lowerQuery.includes("inflation")) {
-        return `According to the U.S. Bureau of Labor Statistics, the inflation rate was 2.7% in November 2025, meaning the CPI rose by 2.7% over the past 12 months before seasonal adjustment. Historical data shows inflation trends from 1914-2026. [1][2]`;
-    }
-    
-    if (lowerQuery.includes("canada") && lowerQuery.includes("immigration")) {
-        return `Canadian asylum seekers undergo a multi-step process including eligibility screening, referral to the Immigration and Refugee Board (IRB), and a hearing. Bill C-12 was introduced in October 2025 affecting certain refugee protections. [1][2]`;
-    }
-    
-    return `Based on government sources and official documentation, "${query}" research is available in the citations below. Each citation includes a clickable link to verify the original source.`;
-}
-
-function generateFallbackSources(query) {
-    const lowerQuery = query.toLowerCase();
-    
-    if (lowerQuery.includes("ice") && lowerQuery.includes("training")) {
-        return [
-            { title: "ICE Training Academy: Basic Immigration Enforcement Training Program (BIETP)", url: "https://www.ice.gov/training-academy", snippet: "22 weeks basic training at FLETC, 4 written exams requiring 70% to pass", type: "government" },
-            { title: "Federal Law Enforcement Training Centers - ICE Curriculum", url: "https://www.fletc.gov/ice-basic", snippet: "Technical instruction in immigration law, investigative procedures", type: "government" },
-            { title: "DHS Use of Force Training Standards", url: "https://www.dhs.gov/use-force-training", snippet: "De-escalation techniques and legal authority framework", type: "government" }
-        ];
-    }
-    
-    if (lowerQuery.includes("inflation")) {
-        return [
-            { title: "BLS Consumer Price Index Summary - November 2025", url: "https://www.bls.gov/news.release/cpi.nr0.htm", snippet: "Inflation rate 2.7% over past 12 months", type: "government" },
-            { title: "U.S. Inflation Rates by Year (1914-2026)", url: "https://www.usinflationcalculator.com/inflation/historical-inflation-rates/", snippet: "Historical CPI data from Bureau of Labor Statistics", type: "official" }
-        ];
-    }
-    
-    return [
-        { title: `Official Government Source: ${query}`, url: "https://www.usa.gov", snippet: "Federal government information and services", type: "government" },
-        { title: `Congressional Research Service: ${query}`, url: "https://crsreports.congress.gov", snippet: "Official policy analysis and research", type: "government" }
-    ];
-}
-
-function generateFallbackNews(query) {
-    return [
-        { title: `${query}: Latest developments and policy updates`, link: "https://www.usa.gov/news", source: "USA.gov Official", snippet: "Government news and announcements" },
-        { title: `Congressional hearing on ${query}`, link: "https://www.congress.gov/hearings", source: "Congress.gov", snippet: "Official testimony and proceedings" }
-    ];
-}
-
-function generateFallbackVideos(query) {
-    return [
-        { id: "demo1", title: `${query} - Official Government Explanation`, channel: "DHS / Official", url: "https://www.youtube.com" },
-        { id: "demo2", title: `Understanding ${query}: Policy Analysis`, channel: "Brookings Institution", url: "https://www.youtube.com" }
-    ];
-}
-
-function countTotalSources(results) {
-    let count = 0;
-    if (results.sources) count += results.sources.length;
-    if (results.news) count += results.news.length;
-    if (results.videos) count += results.videos.length;
-    return count || 8;
 }
