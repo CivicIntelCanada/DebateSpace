@@ -1,203 +1,198 @@
-// Debate Fact Checker - Vercel Backend Version
-// Same UI, but WAY more sources and accuracy
+// DebateSpace - Main Application Script
+// Connects to Vercel API, keeps original layout
 
-// Source list (now just for display - actual search happens on Vercel)
-const SOURCES = {
-    left: ["The Guardian", "Vox", "The Nation", "Mother Jones", "The Intercept"],
-    centre: ["Reuters", "Associated Press", "BBC News", "Politico", "The Hill"],
-    right: ["Fox News", "National Review", "Washington Times", "Daily Wire", "NY Post"]
-};
+const searchForm = document.getElementById('searchForm');
+const searchInput = document.getElementById('searchInput');
+const searchBtn = document.getElementById('searchBtn');
+const loadingDiv = document.getElementById('loading');
+const errorDiv = document.getElementById('error');
+const resultsDiv = document.getElementById('results');
 
-// Rebuttal library (now acts as cache, not primary source)
-let rebuttalLibrary = {};
+// Rebuttal cache (saves to localStorage)
+let rebuttalCache = {};
 
-function loadRebuttals() {
-    const saved = localStorage.getItem('debate_rebuttals');
+function loadCache() {
+    const saved = localStorage.getItem('debatespace_cache');
     if (saved) {
-        rebuttalLibrary = JSON.parse(saved);
-    } else {
-        rebuttalLibrary = {};
-        saveRebuttals();
+        rebuttalCache = JSON.parse(saved);
     }
 }
 
-function saveRebuttals() {
-    localStorage.setItem('debate_rebuttals', JSON.stringify(rebuttalLibrary));
+function saveCache() {
+    localStorage.setItem('debatespace_cache', JSON.stringify(rebuttalCache));
 }
 
 function normalizeQuery(query) {
     return query.toLowerCase().trim().replace(/[^\w\s]/g, '');
 }
 
-function findMatchingRebuttal(query) {
-    const normalized = normalizeQuery(query);
-    if (rebuttalLibrary[normalized]) return rebuttalLibrary[normalized];
+searchForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
     
-    for (const [key, value] of Object.entries(rebuttalLibrary)) {
-        if (normalized.includes(key) || key.includes(normalized)) {
-            return value;
-        }
+    const query = searchInput.value.trim();
+    if (!query) return;
+    
+    await performSearch(query);
+});
+
+async function performSearch(query) {
+    // Show loading
+    loadingDiv.style.display = 'block';
+    document.getElementById('loadingQuery').textContent = query;
+    errorDiv.style.display = 'none';
+    resultsDiv.style.display = 'none';
+    searchBtn.disabled = true;
+    
+    // Check cache first
+    const normalized = normalizeQuery(query);
+    if (rebuttalCache[normalized]) {
+        displayResults(rebuttalCache[normalized], query);
+        loadingDiv.style.display = 'none';
+        searchBtn.disabled = false;
+        resultsDiv.style.display = 'block';
+        return;
     }
-    return null;
-}
-
-// MAIN SEARCH FUNCTION - Calls Vercel API
-async function searchDebate() {
-    const query = document.getElementById('searchInput').value;
-    if (!query.trim()) return;
-
-    const loading = document.getElementById('loading');
-    const resultsDiv = document.getElementById('results');
-
-    loading.style.display = 'block';
-    resultsDiv.innerHTML = '';
-
+    
     try {
-        // Check local cache first
-        let rebuttal = findMatchingRebuttal(query);
+        const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+        const data = await response.json();
         
-        if (!rebuttal) {
-            // Call Vercel API (this gives you ALL the sources, YouTube, parliament, etc.)
-            resultsDiv.innerHTML = '<div class="result-card" style="grid-column:1/-1; text-align:center;">🔍 Searching live sources (YouTube, news, fact-checks, parliament)...</div>';
-            
-            const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
-            const data = await response.json();
-            
-            if (data.success && data.answer) {
-                rebuttal = {
-                    topic: query,
-                    verdict: data.answer.verdict || "Check sources",
-                    left: data.answer.left || "No left source found",
-                    centre: data.answer.centre || "No centre source found",
-                    right: data.answer.right || "No right source found",
-                    sources: data.answer.sources || {},
-                    youtube: data.answer.youtube || [],
-                    parliament: data.answer.parliament || null,
-                    wars: data.answer.wars || null
-                };
-                
-                // Cache for next time
-                const key = normalizeQuery(query);
-                rebuttalLibrary[key] = rebuttal;
-                saveRebuttals();
-            } else {
-                throw new Error(data.error || "No results");
-            }
+        if (data.success && data.answer) {
+            // Cache the result
+            rebuttalCache[normalized] = data.answer;
+            saveCache();
+            displayResults(data.answer, query);
+        } else {
+            showError(data.error || 'Failed to fetch results. Please try again.');
         }
-        
-        // Display results (same format as before, but with more data)
-        displayResults(rebuttal);
-        
-    } catch (error) {
-        console.error('Search error:', error);
-        resultsDiv.innerHTML = `
-            <div class="result-card" style="grid-column:1/-1; text-align:center; background:#fee;">
-                <h3>⚠️ Error fetching results</h3>
-                <p>${error.message || "Please try again"}</p>
-                <p style="font-size:0.8rem;">Make sure Vercel is deployed and API routes are working.</p>
-            </div>
-        `;
+    } catch (err) {
+        console.error('Error:', err);
+        showError('Network error. Please check your connection and try again.');
     } finally {
-        loading.style.display = 'none';
+        loadingDiv.style.display = 'none';
+        searchBtn.disabled = false;
+        resultsDiv.style.display = 'block';
     }
 }
 
-// Updated display function - handles YouTube and parliament too
-function displayResults(rebuttal) {
-    const resultsDiv = document.getElementById('results');
+function showError(message) {
+    errorDiv.textContent = `⚠️ ${message}`;
+    errorDiv.style.display = 'block';
+    resultsDiv.style.display = 'none';
+}
 
-    let html = `
+function displayResults(answer, query) {
+    let html = '';
+    
+    // Left Card
+    html += `
         <div class="result-card left">
             <div class="card-title">⬅️ LEFT VIEW</div>
-            ${rebuttal.verdict ? `<div class="verdict">📊 ${rebuttal.verdict}</div>` : ''}
-            <div class="claim">${rebuttal.left}</div>
-            <div class="source">🔗 Source: <a href="${rebuttal.sources.left || '#'}" target="_blank">${rebuttal.sources.left?.split('/')[2] || 'Left Source'}</a></div>
+            ${answer.verdict ? `<div class="verdict">📊 ${answer.verdict}</div>` : ''}
+            <div class="claim">${escapeHtml(answer.left || 'No left source found')}</div>
+            <div class="source">🔗 Source: <a href="${answer.sources?.left || '#'}" target="_blank" rel="noopener noreferrer">${getDomain(answer.sources?.left) || 'Left Source'}</a></div>
             <div class="rebuttal">
                 <h4>💬 Rebuttal Ready</h4>
-                <p>${rebuttal.left}</p>
-                <button class="copy-btn" onclick="copyToClipboard('${rebuttal.left.replace(/'/g, "\\'")}')">📋 Copy Rebuttal</button>
-            </div>
-        </div>
-
-        <div class="result-card centre">
-            <div class="card-title">⚖️ CENTRE VIEW</div>
-            <div class="claim">${rebuttal.centre}</div>
-            <div class="source">🔗 Source: <a href="${rebuttal.sources.centre || '#'}" target="_blank">${rebuttal.sources.centre?.split('/')[2] || 'Centre Source'}</a></div>
-            ${rebuttal.sources.factcheck ? `<div class="source">✅ Fact Check: <a href="${rebuttal.sources.factcheck}" target="_blank">View Verification</a></div>` : ''}
-        </div>
-
-        <div class="result-card right">
-            <div class="card-title">➡️ RIGHT VIEW</div>
-            <div class="claim">${rebuttal.right}</div>
-            <div class="source">🔗 Source: <a href="${rebuttal.sources.right || '#'}" target="_blank">${rebuttal.sources.right?.split('/')[2] || 'Right Source'}</a></div>
-            <div class="rebuttal">
-                <h4>💬 Counter-Rebuttal</h4>
-                <p>${rebuttal.right}</p>
-                <button class="copy-btn" onclick="copyToClipboard('${rebuttal.right.replace(/'/g, "\\'")}')">📋 Copy Counterpoint</button>
+                <p>${escapeHtml(answer.left || '')}</p>
+                <button class="copy-btn" onclick="copyToClipboard('${escapeHtml(answer.left || '').replace(/'/g, "\\'")}')">📋 Copy Rebuttal</button>
             </div>
         </div>
     `;
-
-    // YouTube section
-    if (rebuttal.youtube && rebuttal.youtube.length > 0) {
+    
+    // Centre Card
+    html += `
+        <div class="result-card centre">
+            <div class="card-title">⚖️ CENTRE VIEW</div>
+            <div class="claim">${escapeHtml(answer.centre || 'No centre source found')}</div>
+            <div class="source">🔗 Source: <a href="${answer.sources?.centre || '#'}" target="_blank" rel="noopener noreferrer">${getDomain(answer.sources?.centre) || 'Centre Source'}</a></div>
+            ${answer.sources?.factcheck ? `<div class="source">✅ Fact Check: <a href="${answer.sources.factcheck}" target="_blank" rel="noopener noreferrer">Verify Here</a></div>` : ''}
+        </div>
+    `;
+    
+    // Right Card
+    html += `
+        <div class="result-card right">
+            <div class="card-title">➡️ RIGHT VIEW</div>
+            <div class="claim">${escapeHtml(answer.right || 'No right source found')}</div>
+            <div class="source">🔗 Source: <a href="${answer.sources?.right || '#'}" target="_blank" rel="noopener noreferrer">${getDomain(answer.sources?.right) || 'Right Source'}</a></div>
+            <div class="rebuttal">
+                <h4>💬 Counter-Rebuttal</h4>
+                <p>${escapeHtml(answer.right || '')}</p>
+                <button class="copy-btn" onclick="copyToClipboard('${escapeHtml(answer.right || '').replace(/'/g, "\\'")}')">📋 Copy Counterpoint</button>
+            </div>
+        </div>
+    `;
+    
+    // YouTube Section (if available)
+    if (answer.youtube && answer.youtube.length > 0) {
         html += `
-            <div class="result-card" style="grid-column: 1/-1; background: #f0f9ff;">
+            <div class="result-card full-width" style="background: #f0f9ff;">
                 <div class="card-title">🎥 YOUTUBE EXPLANATIONS</div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap: 15px;">
-                    ${rebuttal.youtube.map(video => `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px,1fr)); gap: 15px;">
+                    ${answer.youtube.map(video => `
                         <div>
-                            <a href="${video.url}" target="_blank">
-                                <strong>${video.title.slice(0, 80)}</strong>
-                            </a>
-                            <p style="font-size:0.75rem; color:#666;">${video.channel} • ${video.views} views</p>
+                            <a href="${video.url}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(video.title).slice(0, 80)}</strong></a>
+                            <p style="font-size:0.7rem; color:#666; margin-top:5px;">${escapeHtml(video.channel)}</p>
                         </div>
                     `).join('')}
                 </div>
             </div>
         `;
     }
-
-    // Parliament section
-    if (rebuttal.parliament) {
+    
+    // Parliament Section (if available)
+    if (answer.parliament) {
         html += `
-            <div class="result-card" style="grid-column: 1/-1; background: #fefce8;">
-                <div class="card-title">🏛️ PARLIAMENT/LIVE BRIEFINGS</div>
-                <div><a href="${rebuttal.parliament.url}" target="_blank">${rebuttal.parliament.title}</a></div>
-                <div class="source">📅 ${rebuttal.parliament.date || 'Recent'}</div>
+            <div class="result-card full-width" style="background: #fefce8;">
+                <div class="card-title">🏛️ PARLIAMENT / LIVE BRIEFINGS</div>
+                <div><a href="${answer.parliament.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(answer.parliament.title)}</a></div>
+                <div class="source">📅 ${answer.parliament.date || 'Recent'}</div>
             </div>
         `;
     }
-
-    // Wars section
-    if (rebuttal.wars && rebuttal.wars.length > 0) {
+    
+    // Wars Section (if available)
+    if (answer.wars && answer.wars.length > 0) {
         html += `
-            <div class="result-card" style="grid-column: 1/-1; background: #fef2f2;">
+            <div class="result-card full-width" style="background: #fef2f2;">
                 <div class="card-title">⚔️ LIVE CONFLICT UPDATES</div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 10px;">
-                    ${rebuttal.wars.map(war => `
+                    ${answer.wars.map(war => `
                         <div>
-                            <strong>${war.name}</strong><br>
-                            Status: ${war.status}<br>
-                            <a href="${war.source}" target="_blank">Live Map →</a>
+                            <strong>${escapeHtml(war.name)}</strong><br>
+                            Status: ${escapeHtml(war.status)}<br>
+                            <a href="${war.source}" target="_blank" rel="noopener noreferrer">Live Map →</a>
                         </div>
                     `).join('')}
                 </div>
             </div>
         `;
     }
-
+    
     resultsDiv.innerHTML = html;
+    resultsDiv.style.display = 'grid';
+}
+
+function getDomain(url) {
+    if (!url || url === '#') return null;
+    try {
+        return new URL(url).hostname.replace('www.', '');
+    } catch {
+        return null;
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text);
-    alert('✅ Rebuttal copied to clipboard!');
+    alert('✅ Copied to clipboard!');
 }
 
-// Allow Enter key
-document.getElementById('searchInput').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') searchDebate();
-});
-
 // Initialize
-loadRebuttals();
+loadCache();
