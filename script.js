@@ -378,4 +378,39 @@ h1 span { background: linear-gradient(135deg, #a78bfa 0%, #c084fc 100%); -webkit
 }
 .stats-footer span { padding: 4px 10px; background: rgba(255,255,255,0.05); border-radius: 30px; }
 
-/* Footer
+/* Footer */
+.site-footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 0.7rem; color: #52525b; }
+
+/* Error */
+.error-card { text-align: center; padding: 40px; background: rgba(239,68,68,0.1); border-radius: 24px; }
+.retry-btn { background: #6366f1; border: none; padding: 10px 24px; border-radius: 50px; color: white; font-weight: 600; cursor: pointer; margin-top: 16px; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .main-container { padding: 20px 16px; }
+    h1 { font-size: 2rem; }
+    .search-container { flex-direction: column; background: #181825; border-radius: 28px; padding: 12px; }
+    #searchInput { width: 100%; padding: 14px; }
+    #searchBtn { width: 100%; margin-top: 10px; }
+    .videos-grid { grid-template-columns: 1fr; }
+    .citation-item { flex-direction: column; }
+    .citation-source { flex-direction: column; align-items: flex-start; }
+}
+</style>
+`;
+
+if (!document.querySelector('#debate-styles')) {
+    const styleTag = document.createElement('style');
+    styleTag.id = 'debate-styles';
+    styleTag.textContent = styles;
+    document.head.appendChild(styleTag);
+}
+
+window.searchDebate = searchDebate;
+window.setSearch = setSearch;
+
+document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') searchDebate();
+});
+
+console.log('DebateSpace loaded');
