@@ -1,5 +1,6 @@
 // ============================================
-// DEBATESPACE - FIXED AI ANALYSIS WITH GROQ
+// DEBATESPACE - COMPLETE API
+// Discovery research with AI analysis
 // ============================================
 
 export default async function handler(req, res) {
@@ -16,11 +17,10 @@ export default async function handler(req, res) {
         const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
         
         // ========================================
-        // SEARCH ALL SOURCES
+        // SEARCH ALL CX ENGINES
         // ========================================
         let allResults = [];
         
-        // CX Engines
         const cxEngines = [
             { name: 'North America', cx: process.env.GOOGLE_SEARCH_CX_NA },
             { name: 'Asia Pacific', cx: process.env.GOOGLE_SEARCH_CX_ASIA },
@@ -33,31 +33,35 @@ export default async function handler(req, res) {
             if (apiKey && engine.cx) {
                 const results = await searchCX(apiKey, engine.cx, query);
                 allResults.push(...results);
-                console.log(`${engine.name}: ${results.length} results`);
             }
         }
         
-        // Government domains
+        // ========================================
+        // SEARCH GOVERNMENT DOMAINS
+        // ========================================
         const govDomains = ['.gov', '.gc.ca', '.gov.uk', '.mil'];
         for (const domain of govDomains) {
             if (apiKey) {
                 const results = await searchGovDomain(apiKey, domain, query);
                 allResults.push(...results);
-                console.log(`${domain}: ${results.length} results`);
             }
         }
         
-        // Archives
+        // ========================================
+        // SEARCH ARCHIVES
+        // ========================================
         const archiveResults = await searchArchives(query);
         allResults.push(...archiveResults);
-        console.log(`Archives: ${archiveResults.length} results`);
         
-        // Tavily
+        // ========================================
+        // TAVILY SEARCH
+        // ========================================
         const tavilyResults = await tavilySearch(query);
         allResults.push(...tavilyResults);
-        console.log(`Tavily: ${tavilyResults.length} results`);
         
-        // Remove duplicates
+        // ========================================
+        // REMOVE DUPLICATES
+        // ========================================
         const uniqueResults = [];
         const seenUrls = new Set();
         for (const result of allResults) {
@@ -67,29 +71,17 @@ export default async function handler(req, res) {
             }
         }
         
-        console.log(`\n📊 TOTAL SOURCES: ${uniqueResults.length}`);
-        console.log(`   Government: ${uniqueResults.filter(r => r.isGovernment).length}`);
+        console.log(`Total sources: ${uniqueResults.length}`);
         
         // ========================================
-        // BUILD RESEARCH ANSWER (Citations)
+        // BUILD RESEARCH ANSWER
         // ========================================
         const researchAnswer = buildResearchAnswer(query, uniqueResults);
         
         // ========================================
-        // GENERATE AI ANALYSIS - WITH ERROR HANDLING
+        // GENERATE AI ANALYSIS
         // ========================================
-        let aiAnalysis = null;
-        try {
-            aiAnalysis = await generateAIAnalysis(query, uniqueResults);
-            console.log(`AI Analysis generated: ${aiAnalysis ? 'success' : 'failed'}`);
-        } catch (aiError) {
-            console.error('AI Analysis error:', aiError.message);
-            aiAnalysis = {
-                text: `AI analysis temporarily unavailable. Please review the ${uniqueResults.length} research sources below.`,
-                sourcesUsed: uniqueResults.length,
-                modelUsed: "Error - see sources"
-            };
-        }
+        const aiAnalysis = await generateAIAnalysis(query, uniqueResults);
         
         // ========================================
         // GET SUPPLEMENTAL CONTENT
@@ -109,7 +101,7 @@ export default async function handler(req, res) {
         });
         
     } catch (error) {
-        console.error('FATAL ERROR:', error);
+        console.error('ERROR:', error);
         return res.status(200).json({
             success: true,
             query: query,
@@ -145,9 +137,7 @@ async function searchCX(apiKey, cx, query) {
                 }
             }
         }
-    } catch (error) {
-        console.error(`CX search error:`, error.message);
-    }
+    } catch (error) {}
     return results;
 }
 
@@ -173,9 +163,7 @@ async function searchGovDomain(apiKey, domain, query) {
                 }
             }
         }
-    } catch (error) {
-        console.error(`Domain search error:`, error.message);
-    }
+    } catch (error) {}
     return results;
 }
 
@@ -332,35 +320,28 @@ function buildResearchAnswer(query, sources) {
 }
 
 // ============================================
-// GENERATE AI ANALYSIS - FIXED GROQ INTEGRATION
+// GENERATE AI ANALYSIS
 // ============================================
 async function generateAIAnalysis(query, sources) {
     const groqKey = process.env.GROQ_API_KEY;
     
-    console.log(`[AI Analysis] Groq API key present: ${!!groqKey}`);
-    console.log(`[AI Analysis] Sources to analyze: ${sources.length}`);
-    
-    // If no Groq key, return fallback
     if (!groqKey) {
-        console.log('[AI Analysis] No Groq API key found');
         return {
-            text: `AI analysis requires a Groq API key. Please check your environment variables. For now, please review the ${sources.length} research sources above.`,
+            text: `AI analysis requires a Groq API key. Please review the ${sources.length} research sources above.`,
             sourcesUsed: sources.length,
             modelUsed: "Groq API key missing"
         };
     }
     
-    // If no sources, return message
     if (sources.length === 0) {
-        console.log('[AI Analysis] No sources to analyze');
         return {
-            text: `No research sources were found for "${query}". Please try different keywords or check your search terms.`,
+            text: `No research sources were found for "${query}". Please try different keywords.`,
             sourcesUsed: 0,
-            modelUsed: "No sources to analyze"
+            modelUsed: "No sources"
         };
     }
     
-    // Prepare source text for AI (limit to 10 most relevant for token limits)
+    // Prepare source excerpts
     const topSources = sources.slice(0, 10);
     const sourceTexts = [];
     
@@ -372,8 +353,6 @@ async function generateAIAnalysis(query, sources) {
             sourceTexts.push(`${sourceLabel} ${content.substring(0, 350)}`);
         }
     }
-    
-    console.log(`[AI Analysis] Prepared ${sourceTexts.length} source excerpts for analysis`);
     
     try {
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -387,22 +366,11 @@ async function generateAIAnalysis(query, sources) {
                 messages: [
                     {
                         role: 'system',
-                        content: `You are a neutral research analyst. Summarize what the provided research sources say.
-
-RULES:
-1. ONLY use information from the provided sources
-2. DO NOT add outside knowledge or opinions
-3. Keep your answer concise (150-250 words)
-4. Answer the user's question directly`
+                        content: `You are a neutral research analyst. Summarize what the provided research sources say. ONLY use information from the sources. Keep your answer concise (150-250 words).`
                     },
                     {
                         role: 'user',
-                        content: `User Question: ${query}
-
-Research Sources (${sourceTexts.length} sources):
-${sourceTexts.join('\n\n')}
-
-Based ONLY on the research sources above, provide a clear answer to the user's question.`
+                        content: `User Question: ${query}\n\nResearch Sources:\n${sourceTexts.join('\n\n')}\n\nBased ONLY on the research sources above, provide a clear answer to the user's question.`
                     }
                 ],
                 temperature: 0.1,
@@ -413,30 +381,27 @@ Based ONLY on the research sources above, provide a clear answer to the user's q
         if (response.ok) {
             const data = await response.json();
             const analysis = data.choices?.[0]?.message?.content;
-            console.log(`[AI Analysis] Successfully generated analysis (${analysis?.length || 0} chars)`);
             
             return {
                 text: analysis || `Based on ${sources.length} sources, the research findings are presented above.`,
                 sourcesUsed: sources.length,
                 modelUsed: "Groq Llama 3.3",
-                disclaimer: "Analysis based solely on the research sources above"
+                disclaimer: "Analysis based solely on the research sources"
             };
         } else {
-            const errorText = await response.text();
-            console.error(`[AI Analysis] Groq API error ${response.status}:`, errorText);
             return {
-                text: `AI analysis temporarily unavailable (API error). Please review the ${sources.length} research sources above for information about "${query}".`,
+                text: `AI analysis temporarily unavailable. Please review the ${sources.length} research sources above.`,
                 sourcesUsed: sources.length,
-                modelUsed: `API error: ${response.status}`
+                modelUsed: "API error"
             };
         }
         
     } catch (error) {
-        console.error('[AI Analysis] Fetch error:', error.message);
+        console.error('AI Analysis error:', error.message);
         return {
-            text: `AI analysis unavailable due to a network error. Please review the ${sources.length} research sources above for information about "${query}".`,
+            text: `AI analysis unavailable. Please review the ${sources.length} research sources above.`,
             sourcesUsed: sources.length,
-            modelUsed: "Network error"
+            modelUsed: "Error"
         };
     }
 }
