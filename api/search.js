@@ -1,6 +1,6 @@
 // ============================================
-// DEBATESPACE - DEEPER RESEARCH API
-// Searches 15+ gov domains, 15+ archives, returns 60+ sources
+// DEBATESPACE - DEEPER RESEARCH API (CLEAN OUTPUT)
+// Removes markdown artifacts, adds claim links
 // ============================================
 
 export default async function handler(req, res) {
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
         let allResults = [];
         
         // ========================================
-        // SEARCH ALL CX ENGINES (12 results each)
+        // SEARCH ALL CX ENGINES
         // ========================================
         const cxEngines = [
             { name: 'North America', cx: process.env.GOOGLE_SEARCH_CX_NA },
@@ -37,14 +37,12 @@ export default async function handler(req, res) {
         }
         
         // ========================================
-        // SEARCH EXPANDED GOVERNMENT DOMAINS (15+)
+        // SEARCH EXPANDED GOVERNMENT DOMAINS
         // ========================================
         const govDomains = [
-            '.gov', '.gc.ca', '.gov.uk', '.mil',
-            '.gov.au', '.govt.nz',
-            '.gouv.fr', '.gob.es', '.gov.it', '.gov.de',
-            '.go.jp', '.go.kr', '.gov.sg', '.gov.in',
-            '.gov.za', '.go.ke'
+            '.gov', '.gc.ca', '.gov.uk', '.mil', '.gov.au', '.govt.nz',
+            '.gouv.fr', '.gob.es', '.gov.it', '.gov.de', '.go.jp', '.go.kr',
+            '.gov.sg', '.gov.in', '.gov.za', '.go.ke'
         ];
         
         for (const domain of govDomains) {
@@ -55,7 +53,7 @@ export default async function handler(req, res) {
         }
         
         // ========================================
-        // SEARCH EXPANDED ARCHIVES (15+)
+        // SEARCH EXPANDED ARCHIVES
         // ========================================
         const archives = [
             'archive.org', 'archives.gov', 'census.gov', 'data.gov',
@@ -88,17 +86,16 @@ export default async function handler(req, res) {
         }
         
         console.log(`\n📊 TOTAL SOURCES: ${uniqueResults.length}`);
-        console.log(`   Government: ${uniqueResults.filter(r => r.isGovernment).length}`);
         
         // ========================================
-        // BUILD DEEPER RESEARCH ANSWER
+        // BUILD CLEAN RESEARCH ANSWER
         // ========================================
-        const researchAnswer = buildDeepResearchAnswer(query, uniqueResults);
+        const researchAnswer = buildCleanResearchAnswer(query, uniqueResults);
         
         // ========================================
-        // GENERATE DEEPER AI ANALYSIS
+        // GENERATE CLEAN AI ANALYSIS
         // ========================================
-        const aiAnalysis = await generateDeepAIAnalysis(query, uniqueResults);
+        const aiAnalysis = await generateCleanAIAnalysis(query, uniqueResults);
         
         // ========================================
         // GET SUPPLEMENTAL CONTENT
@@ -134,7 +131,7 @@ export default async function handler(req, res) {
 }
 
 // ============================================
-// DEEPER SEARCH FUNCTIONS
+// SEARCH FUNCTIONS (same as before)
 // ============================================
 
 async function searchCXDeep(apiKey, cx, query) {
@@ -151,7 +148,7 @@ async function searchCXDeep(apiKey, cx, query) {
                         source: new URL(item.link).hostname.replace('www.', ''),
                         title: item.title,
                         url: item.link,
-                        snippet: item.snippet,
+                        snippet: cleanText(item.snippet || ''),
                         isGovernment: item.link.includes('.gov') || item.link.includes('.gc.ca') || item.link.includes('.gov.')
                     });
                 }
@@ -177,7 +174,7 @@ async function searchGovDomainDeep(apiKey, domain, query) {
                         source: domain,
                         title: item.title,
                         url: item.link,
-                        snippet: item.snippet,
+                        snippet: cleanText(item.snippet || ''),
                         isGovernment: true
                     });
                 }
@@ -203,7 +200,7 @@ async function searchArchiveDeep(apiKey, archive, query) {
                         source: archive,
                         title: item.title,
                         url: item.link,
-                        snippet: item.snippet,
+                        snippet: cleanText(item.snippet || ''),
                         isGovernment: archive.includes('.gov') || archive.includes('.org')
                     });
                 }
@@ -237,7 +234,7 @@ async function tavilySearchDeep(query) {
                         source: new URL(result.url).hostname.replace('www.', ''),
                         title: result.title,
                         url: result.url,
-                        snippet: result.content?.substring(0, 500),
+                        snippet: cleanText(result.content?.substring(0, 500) || ''),
                         isGovernment: result.url.includes('.gov')
                     });
                 }
@@ -257,11 +254,11 @@ async function getNewsDeep(query) {
             const data = await response.json();
             if (data.articles) {
                 return data.articles.map(article => ({
-                    title: article.title,
+                    title: cleanText(article.title),
                     url: article.url,
                     source: new URL(article.url).hostname.replace('www.', ''),
                     date: article.publishedAt?.split('T')[0],
-                    description: article.description?.substring(0, 200)
+                    description: cleanText(article.description?.substring(0, 200) || '')
                 }));
             }
         }
@@ -279,9 +276,9 @@ async function getVideosDeep(query) {
             const data = await response.json();
             if (data.items) {
                 return data.items.map(item => ({
-                    title: item.snippet.title,
+                    title: cleanText(item.snippet.title),
                     url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
-                    channel: item.snippet.channelTitle,
+                    channel: cleanText(item.snippet.channelTitle),
                     thumbnail: item.snippet.thumbnails?.medium?.url || ''
                 }));
             }
@@ -291,9 +288,35 @@ async function getVideosDeep(query) {
 }
 
 // ============================================
-// BUILD DEEPER RESEARCH ANSWER
+// CLEAN TEXT FUNCTION (removes markdown artifacts)
 // ============================================
-function buildDeepResearchAnswer(query, sources) {
+function cleanText(text) {
+    if (!text) return '';
+    
+    let cleaned = text;
+    
+    // Remove markdown headers (##, ###, etc.)
+    cleaned = cleaned.replace(/^#{1,6}\s+/gm, '');
+    cleaned = cleaned.replace(/\n#{1,6}\s+/g, '\n');
+    
+    // Remove asterisks (bold/italic markers)
+    cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '$1');
+    cleaned = cleaned.replace(/\*([^*]+)\*/g, '$1');
+    
+    // Remove markdown links [text](url) -> text
+    cleaned = cleaned.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+    
+    // Remove extra spaces and clean up
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    cleaned = cleaned.replace(/\n\s*\n/g, '\n\n');
+    
+    return cleaned;
+}
+
+// ============================================
+// BUILD CLEAN RESEARCH ANSWER
+// ============================================
+function buildCleanResearchAnswer(query, sources) {
     const govSources = sources.filter(s => s.isGovernment === true);
     const otherSources = sources.filter(s => !s.isGovernment);
     const sortedSources = [...govSources, ...otherSources];
@@ -309,7 +332,7 @@ function buildDeepResearchAnswer(query, sources) {
     
     const citations = [];
     let citationId = 1;
-    let fullText = `Found ${sortedSources.length} sources (${govSources.length} government sources, ${sortedSources.length - govSources.length} academic/think tank sources) about "${query}". `;
+    let fullText = `Found ${sortedSources.length} sources (${govSources.length} government sources) about "${query}". `;
     
     // Group findings by category
     const categories = {
@@ -320,18 +343,19 @@ function buildDeepResearchAnswer(query, sources) {
     
     for (const source of sortedSources.slice(0, 25)) {
         let quote = source.snippet || source.title || '';
-        quote = quote.replace(/\s+/, ' ').trim();
+        quote = cleanText(quote);
         
         if (quote.length > 40 && !quote.toLowerCase().includes('search')) {
             // Categorize based on content
-            if (quote.match(/\d+%|\$\d+|\d+ billion|\d+ million/)) {
-                categories.statistics.push(quote.substring(0, 300));
-            } else if (quote.match(/policy|law|regulation|act|bill/)) {
-                categories.policy.push(quote.substring(0, 300));
-            } else if (quote.match(/econom|gdp|inflation|market|trade/)) {
-                categories.economic.push(quote.substring(0, 300));
+            if (quote.match(/\d+%|\$\d+|\d+ billion|\d+ million|\d+,\d+|\d+\.\d+/)) {
+                categories.statistics.push({ text: quote.substring(0, 300), url: source.url });
+            } else if (quote.match(/policy|law|regulation|act|bill|plan|strategy/)) {
+                categories.policy.push({ text: quote.substring(0, 300), url: source.url });
+            } else if (quote.match(/econom|gdp|inflation|market|trade|fee|cost|price/)) {
+                categories.economic.push({ text: quote.substring(0, 300), url: source.url });
             }
             
+            // Build citation with clickable link embedded in the claim
             fullText += `[${citationId}] "${quote.substring(0, 200)}..." `;
             
             citations.push({
@@ -346,7 +370,7 @@ function buildDeepResearchAnswer(query, sources) {
     }
     
     if (categories.statistics.length > 0) {
-        fullText += ` Key statistics found: ${categories.statistics.length} sources. `;
+        fullText += ` Found ${categories.statistics.length} key statistics. `;
     }
     
     fullText += ` Click any [number] to verify the source.`;
@@ -357,17 +381,17 @@ function buildDeepResearchAnswer(query, sources) {
         evidenceCount: sortedSources.length,
         governmentCount: govSources.length,
         categories: {
-            statistics: categories.statistics.slice(0, 3),
-            policy: categories.policy.slice(0, 3),
-            economic: categories.economic.slice(0, 3)
+            statistics: categories.statistics.slice(0, 5),
+            policy: categories.policy.slice(0, 5),
+            economic: categories.economic.slice(0, 5)
         }
     };
 }
 
 // ============================================
-// GENERATE DEEPER AI ANALYSIS
+// GENERATE CLEAN AI ANALYSIS (NO MARKDOWN)
 // ============================================
-async function generateDeepAIAnalysis(query, sources) {
+async function generateCleanAIAnalysis(query, sources) {
     const groqKey = process.env.GROQ_API_KEY;
     
     if (!groqKey) {
@@ -391,9 +415,9 @@ async function generateDeepAIAnalysis(query, sources) {
     
     for (const source of topSources) {
         let content = source.snippet || source.title || '';
-        content = content.replace(/\s+/, ' ').trim();
+        content = cleanText(content);
         if (content.length > 50) {
-            const sourceLabel = source.isGovernment ? `🏛️ GOVERNMENT: ${source.source}` : `📄 SOURCE: ${source.source}`;
+            const sourceLabel = source.isGovernment ? `GOVERNMENT: ${source.source}` : `SOURCE: ${source.source}`;
             sourceTexts.push(`${sourceLabel}\n${content.substring(0, 400)}`);
         }
     }
@@ -410,13 +434,13 @@ async function generateDeepAIAnalysis(query, sources) {
                 messages: [
                     {
                         role: 'system',
-                        content: `You are a neutral, unbiased fact-checking research analyst. Your task is to:
-1. Summarize what the provided research sources say about the user's question
-2. Identify any contradictions between sources
-3. Note which claims are supported by government sources
-4. Highlight key statistics or data points
-5. ONLY use information from the sources — never add external knowledge
-6. Be concise but thorough (200-300 words)`
+                        content: `You are a neutral, unbiased research analyst. Your task is to:
+1. Answer the user's question using ONLY the provided sources
+2. DO NOT use markdown, asterisks, hashtags, or any formatting symbols
+3. Write in plain, clean paragraphs
+4. Identify key statistics as bullet points with dashes
+5. Note any contradictions between sources
+6. Be concise (200-300 words)`
                     },
                     {
                         role: 'user',
@@ -427,28 +451,31 @@ RESEARCH SOURCES (${sources.length} total, ${sources.filter(s => s.isGovernment)
 ${sourceTexts.join('\n\n')}
 
 Based STRICTLY on the research sources above, provide:
-1. A clear answer to the user's question
-2. Key statistics found (with source counts)
-3. Any contradictions between sources
-4. What additional information would help answer more completely
+1. A clear answer to the user's question (plain text, no markdown)
+2. Key statistics found (as simple bullet points with dashes)
+3. Any contradictions between sources (or say "None found")
+4. What additional information would help
 
-Format your response in clear paragraphs.`
+Use NO asterisks, NO hashtags, NO markdown formatting. Just clean text.`
                     }
                 ],
                 temperature: 0.1,
-                max_tokens: 750
+                max_tokens: 800
             })
         });
         
         if (response.ok) {
             const data = await response.json();
-            const analysis = data.choices?.[0]?.message?.content;
+            let analysis = data.choices?.[0]?.message?.content || '';
+            
+            // Clean any remaining markdown from AI response
+            analysis = cleanText(analysis);
             
             return {
-                text: analysis || `Based on ${sources.length} sources (${sources.filter(s => s.isGovernment).length} government), the research findings are presented above.`,
+                text: analysis,
                 sourcesUsed: sources.length,
                 governmentSourcesUsed: sources.filter(s => s.isGovernment).length,
-                modelUsed: "Groq Llama 3.3 (Deep Analysis)"
+                modelUsed: "Groq Llama 3.3"
             };
         } else {
             return {
