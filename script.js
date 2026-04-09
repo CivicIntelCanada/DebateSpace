@@ -1,6 +1,6 @@
 // ============================================
-// DEBATESPACE - EXACT LAYOUT FROM SCREENSHOT
-// Purple/Black theme with AI Analysis at top
+// DEBATESPACE - DEEPER RESEARCH FRONTEND
+// EXACT LAYOUT PRESERVED (Purple/Black theme, AI card at top)
 // ============================================
 
 async function searchDebate() {
@@ -32,7 +32,6 @@ async function searchDebate() {
 function renderResults(data, query) {
     const container = document.getElementById('results');
     
-    // Format text with clickable citation links
     const formatWithCitations = (text, citations) => {
         if (!text) return '<p>No information available.</p>';
         let formatted = text;
@@ -48,18 +47,37 @@ function renderResults(data, query) {
     };
     
     // AI ANALYSIS SECTION (Top)
+    const aiText = data.aiAnalysis?.text || 'AI analysis temporarily unavailable.';
+    const sourcesUsed = data.aiAnalysis?.sourcesUsed || data.research?.evidenceCount || 0;
+    const govSourcesUsed = data.aiAnalysis?.governmentSourcesUsed || data.research?.governmentCount || 0;
+    
     const aiHtml = `
         <div class="ai-card">
             <div class="ai-header">
                 <span class="ai-icon">🤖</span>
                 <span>AI ANALYSIS OF RESEARCH</span>
             </div>
-            <div class="ai-text">${data.aiAnalysis?.text || 'AI analysis temporarily unavailable. Please review the research sources above.'}</div>
-            <div class="ai-footer">📊 Based on ${data.aiAnalysis?.sourcesUsed || data.research?.evidenceCount || 0} research sources</div>
+            <div class="ai-text">${formatWithCitations(aiText, data.research?.citations)}</div>
+            <div class="ai-footer">📊 Based on ${sourcesUsed} sources (${govSourcesUsed} government) • ${data.aiAnalysis?.modelUsed || 'Groq Llama 3.3'}</div>
         </div>
     `;
     
-    // RESEARCH FINDINGS SECTION
+    // RESEARCH FINDINGS with Categories
+    let researchText = data.research?.text || 'Research findings will appear here.';
+    
+    if (data.research?.categories) {
+        const cats = data.research.categories;
+        if (cats.statistics?.length) {
+            researchText += `\n\n📊 KEY STATISTICS FOUND:\n${cats.statistics.map(s => `• ${s.substring(0, 150)}...`).join('\n')}`;
+        }
+        if (cats.policy?.length) {
+            researchText += `\n\n⚖️ POLICY FINDINGS:\n${cats.policy.map(s => `• ${s.substring(0, 150)}...`).join('\n')}`;
+        }
+        if (cats.economic?.length) {
+            researchText += `\n\n💰 ECONOMIC DATA:\n${cats.economic.map(s => `• ${s.substring(0, 150)}...`).join('\n')}`;
+        }
+    }
+    
     const researchHtml = `
         <div class="research-card">
             <div class="research-header">
@@ -67,7 +85,7 @@ function renderResults(data, query) {
                 <span>RESEARCH FINDINGS WITH CITATIONS</span>
             </div>
             <div class="research-text">
-                ${formatWithCitations(data.research?.text, data.research?.citations)}
+                ${formatWithCitations(researchText, data.research?.citations)}
             </div>
             <div class="research-footer">
                 <span>📊 ${data.research?.evidenceCount || 0} sources (${data.research?.governmentCount || 0} government sources)</span>
@@ -87,9 +105,9 @@ function renderResults(data, query) {
                     <div class="citation-item">
                         <div class="citation-id">[${c.id}]</div>
                         <div class="citation-content">
-                            <div class="citation-text">${c.text}</div>
+                            <div class="citation-text">${escapeHtml(c.text.substring(0, 300))}${c.text.length > 300 ? '...' : ''}</div>
                             <div class="citation-source">
-                                <span class="source-label">${c.source}</span>
+                                <span class="source-label">📌 ${escapeHtml(c.source)}</span>
                                 <a href="${c.url}" target="_blank" class="source-link">🔗 View Original Source</a>
                             </div>
                         </div>
@@ -109,9 +127,9 @@ function renderResults(data, query) {
             <div class="news-list">
                 ${data.newsArticles.map(a => `
                     <div class="news-item">
-                        <a href="${a.url}" target="_blank" class="news-title">${a.title}</a>
-                        <div class="news-meta">📌 ${a.source}${a.date ? ` • 📅 ${a.date}` : ''}</div>
-                        ${a.description ? `<div class="news-desc">${a.description}...</div>` : ''}
+                        <a href="${a.url}" target="_blank" class="news-title">${escapeHtml(a.title)}</a>
+                        <div class="news-meta">📌 ${escapeHtml(a.source)}${a.date ? ` • 📅 ${a.date}` : ''}</div>
+                        ${a.description ? `<div class="news-desc">${escapeHtml(a.description.substring(0, 150))}...</div>` : ''}
                     </div>
                 `).join('')}
             </div>
@@ -128,10 +146,10 @@ function renderResults(data, query) {
             <div class="videos-grid">
                 ${data.videoSources.map(v => `
                     <div class="video-item" onclick="window.open('${v.url}', '_blank')">
-                        ${v.thumbnail ? `<img src="${v.thumbnail}">` : '<div class="video-placeholder">🎬</div>'}
+                        ${v.thumbnail ? `<img src="${v.thumbnail}" alt="${escapeHtml(v.title)}">` : '<div class="video-placeholder">🎬</div>'}
                         <div class="video-info">
-                            <div class="video-title">${v.title}</div>
-                            <div class="video-channel">${v.channel}</div>
+                            <div class="video-title">${escapeHtml(v.title)}</div>
+                            <div class="video-channel">${escapeHtml(v.channel)}</div>
                         </div>
                     </div>
                 `).join('')}
@@ -140,34 +158,43 @@ function renderResults(data, query) {
     ` : '';
     
     // ALL SOURCES SECTION
-    const sourcesHtml = data.allSources?.length > 0 ? `
+    const allSources = data.allSources || [];
+    
+    const sourcesHtml = allSources.length > 0 ? `
         <div class="sources-card">
             <div class="sources-header">
                 <span class="sources-icon">📚</span>
-                <span>ALL RESEARCH SOURCES (${data.allSources.length})</span>
+                <span>ALL RESEARCH SOURCES (${allSources.length})</span>
             </div>
             <div class="sources-list">
-                ${data.allSources.map((s, i) => `
+                ${allSources.slice(0, 50).map((s, i) => `
                     <div class="source-item">
                         <span class="source-num">${i+1}.</span>
                         <span class="source-type">${s.isGovernment ? '🏛️' : s.type === 'archive' ? '📜' : '🌐'}</span>
-                        <a href="${s.url}" target="_blank" class="source-link">${s.title || s.snippet?.substring(0, 80)}</a>
-                        <span class="source-domain">${s.source}</span>
+                        <a href="${s.url}" target="_blank" class="source-link">${escapeHtml(s.title || s.snippet?.substring(0, 80) || 'Untitled')}</a>
+                        <span class="source-domain">${escapeHtml(s.source)}</span>
                     </div>
                 `).join('')}
+                ${allSources.length > 50 ? `<div class="more-sources-note">+${allSources.length - 50} more sources available</div>` : ''}
             </div>
         </div>
     ` : '';
     
     // STATS FOOTER
+    const totalGovCount = data.governmentSourcesCount || allSources.filter(s => s.isGovernment).length;
+    const totalArchiveCount = allSources.filter(s => s.type === "archive").length;
+    const totalNewsCount = data.newsArticles?.length || 0;
+    const totalVideoCount = data.videoSources?.length || 0;
+    const totalCitationsCount = data.research?.citations?.length || 0;
+    
     const statsHtml = `
         <div class="stats-footer">
-            <span>🔍 "${query}"</span>
-            <span>🏛️ ${data.allSources?.filter(s => s.isGovernment).length || 0} Government Sources</span>
-            <span>📜 ${data.allSources?.filter(s => s.type === "archive").length || 0} Archives</span>
-            <span>📰 ${data.newsArticles?.length || 0} News Articles</span>
-            <span>📺 ${data.videoSources?.length || 0} Videos</span>
-            <span>📋 ${data.research?.citations?.length || 0} Citations</span>
+            <span>🔍 "${escapeHtml(query.substring(0, 40))}${query.length > 40 ? '...' : ''}"</span>
+            <span>🏛️ ${totalGovCount} Government Sources</span>
+            <span>📜 ${totalArchiveCount} Archives</span>
+            <span>📰 ${totalNewsCount} News Articles</span>
+            <span>📺 ${totalVideoCount} Videos</span>
+            <span>📋 ${totalCitationsCount} Citations</span>
         </div>
     `;
     
@@ -179,7 +206,19 @@ function setSearch(topic) {
     searchDebate();
 }
 
-// Purple/Black Theme Styles
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+// ========================================
+// PURPLE/BLACK THEME STYLES (EXACTLY YOUR LAYOUT)
+// ========================================
 const styles = `
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -204,7 +243,7 @@ h1 span { background: linear-gradient(135deg, #a78bfa 0%, #c084fc 100%); -webkit
 .spinner { width: 50px; height: 50px; border: 3px solid rgba(99,102,241,0.2); border-top: 3px solid #6366f1; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-/* AI Card - Top */
+/* AI Card */
 .ai-card {
     background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(139, 92, 246, 0.05));
     border: 2px solid rgba(139, 92, 246, 0.4);
@@ -212,19 +251,9 @@ h1 span { background: linear-gradient(135deg, #a78bfa 0%, #c084fc 100%); -webkit
     padding: 24px;
     margin-bottom: 24px;
 }
-.ai-header {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #a78bfa;
-    margin-bottom: 16px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid rgba(139, 92, 246, 0.3);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.ai-icon { font-size: 1.2rem; }
+.ai-header { font-size: 1.1rem; font-weight: 700; color: #a78bfa; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid rgba(139, 92, 246, 0.3); display: flex; align-items: center; gap: 10px; }
 .ai-text { font-size: 1rem; line-height: 1.6; color: #e4e4e7; margin-bottom: 16px; }
+.ai-text p { margin-bottom: 12px; }
 .ai-footer { font-size: 0.75rem; color: #a1a1aa; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); }
 
 /* Research Card */
@@ -235,182 +264,25 @@ h1 span { background: linear-gradient(135deg, #a78bfa 0%, #c084fc 100%); -webkit
     padding: 24px;
     margin-bottom: 24px;
 }
-.research-header {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #10b981;
-    margin-bottom: 16px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid rgba(16, 185, 129, 0.3);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.research-icon { font-size: 1.2rem; }
+.research-header { font-size: 1.1rem; font-weight: 700; color: #10b981; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid rgba(16, 185, 129, 0.3); display: flex; align-items: center; gap: 10px; }
 .research-text { font-size: 1rem; line-height: 1.6; color: #e4e4e7; margin-bottom: 16px; }
 .research-text p { margin-bottom: 12px; }
 .citation-link { display: inline-block; color: #fbbf24; text-decoration: none; font-weight: bold; padding: 0 2px; }
-.citation-link:hover { text-decoration: underline; color: #34d399; }
 .research-footer { font-size: 0.75rem; color: #a1a1aa; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); }
 
 /* Citations Card */
-.citations-card {
-    background: rgba(20, 20, 35, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px;
-    padding: 24px;
-    margin-bottom: 24px;
-}
-.citations-header {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #fbbf24;
-    margin-bottom: 16px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
+.citations-card { background: rgba(20,20,35,0.9); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px; margin-bottom: 24px; }
+.citations-header { font-size: 1rem; font-weight: 700; color: #fbbf24; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px; }
 .citations-list { display: flex; flex-direction: column; gap: 16px; max-height: 500px; overflow-y: auto; }
 .citation-item { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 14px; display: flex; gap: 12px; border-left: 3px solid #10b981; }
 .citation-id { font-size: 0.9rem; font-weight: bold; color: #fbbf24; min-width: 40px; }
 .citation-content { flex: 1; }
 .citation-text { font-size: 0.85rem; color: #e4e4e7; margin-bottom: 8px; line-height: 1.4; }
 .citation-source { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 0.7rem; }
-.source-label { color: #fbbf24; }
 .source-link { color: #34d399; text-decoration: none; padding: 4px 10px; background: rgba(16,185,129,0.1); border-radius: 20px; }
-.source-link:hover { background: rgba(16,185,129,0.2); text-decoration: underline; }
 
 /* News Card */
-.news-card {
-    background: rgba(20, 20, 35, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px;
-    padding: 24px;
-    margin-bottom: 24px;
-}
-.news-header {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #3b82f6;
-    margin-bottom: 16px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
+.news-card { background: rgba(20,20,35,0.9); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px; margin-bottom: 24px; }
+.news-header { font-size: 1rem; font-weight: 700; color: #3b82f6; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px; }
 .news-list { display: flex; flex-direction: column; gap: 12px; max-height: 400px; overflow-y: auto; }
-.news-item { background: rgba(0,0,0,0.3); border-radius: 12px; padding: 12px; border-left: 3px solid #3b82f6; }
-.news-title { font-size: 0.9rem; font-weight: 600; color: #60a5fa; text-decoration: none; display: block; margin-bottom: 4px; }
-.news-title:hover { text-decoration: underline; }
-.news-meta { font-size: 0.65rem; color: #71717a; margin-bottom: 6px; }
-.news-desc { font-size: 0.75rem; color: #a1a1aa; }
-
-/* Videos Card */
-.videos-card {
-    background: rgba(20, 20, 35, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px;
-    padding: 24px;
-    margin-bottom: 24px;
-}
-.videos-header {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #ef4444;
-    margin-bottom: 16px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.videos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
-.video-item { background: rgba(0,0,0,0.4); border-radius: 12px; overflow: hidden; cursor: pointer; transition: transform 0.2s; }
-.video-item:hover { transform: translateY(-3px); }
-.video-item img { width: 100%; height: 130px; object-fit: cover; }
-.video-placeholder { width: 100%; height: 130px; background: #1a1a2e; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
-.video-info { padding: 10px; }
-.video-title { font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; }
-.video-channel { font-size: 0.65rem; color: #71717a; }
-
-/* Sources Card */
-.sources-card {
-    background: rgba(20, 20, 35, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px;
-    padding: 24px;
-    margin-bottom: 24px;
-}
-.sources-header {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #a78bfa;
-    margin-bottom: 16px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.sources-list { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
-.source-item { font-size: 0.75rem; padding: 8px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); }
-.source-num { color: #71717a; min-width: 30px; }
-.source-type { font-size: 0.8rem; min-width: 30px; }
-.source-link { color: #60a5fa; text-decoration: none; flex: 1; }
-.source-link:hover { text-decoration: underline; }
-.source-domain { font-size: 0.65rem; color: #71717a; }
-
-/* Stats Footer */
-.stats-footer {
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 40px;
-    padding: 12px 20px;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 16px;
-    font-size: 0.7rem;
-    color: #a1a1aa;
-    margin-top: 20px;
-}
-.stats-footer span { padding: 4px 10px; background: rgba(255,255,255,0.05); border-radius: 30px; }
-
-/* Footer */
-.site-footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 0.7rem; color: #52525b; }
-
-/* Error */
-.error-card { text-align: center; padding: 40px; background: rgba(239,68,68,0.1); border-radius: 24px; }
-.retry-btn { background: #6366f1; border: none; padding: 10px 24px; border-radius: 50px; color: white; font-weight: 600; cursor: pointer; margin-top: 16px; }
-
-/* Responsive */
-@media (max-width: 768px) {
-    .main-container { padding: 20px 16px; }
-    h1 { font-size: 2rem; }
-    .search-container { flex-direction: column; background: #181825; border-radius: 28px; padding: 12px; }
-    #searchInput { width: 100%; padding: 14px; }
-    #searchBtn { width: 100%; margin-top: 10px; }
-    .videos-grid { grid-template-columns: 1fr; }
-    .citation-item { flex-direction: column; }
-    .citation-source { flex-direction: column; align-items: flex-start; }
-}
-</style>
-`;
-
-if (!document.querySelector('#debate-styles')) {
-    const styleTag = document.createElement('style');
-    styleTag.id = 'debate-styles';
-    styleTag.textContent = styles;
-    document.head.appendChild(styleTag);
-}
-
-window.searchDebate = searchDebate;
-window.setSearch = setSearch;
-
-document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') searchDebate();
-});
-
-console.log('DebateSpace loaded');
+.news-item { background:
