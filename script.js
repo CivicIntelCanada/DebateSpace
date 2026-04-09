@@ -1,6 +1,6 @@
 // ============================================
-// DEBATESPACE - CLEAN FRONTEND
-// Clickable claim links, no markdown artifacts
+// DEBATESPACE - PERFECTED FRONTEND
+// Keeps your exact purple/black layout
 // ============================================
 
 async function searchDebate() {
@@ -39,26 +39,12 @@ function renderResults(data, query) {
         formatted = formatted.replace(/\[(\d+)\]/g, (match, num) => {
             const citation = citations?.find(c => c.id == num);
             if (citation) {
-                return `<a href="${citation.url}" target="_blank" class="citation-link" title="Click to verify: ${citation.source}">[${num}]</a>`;
+                return `<a href="${citation.url}" target="_blank" class="citation-link" title="Verify source: ${citation.source}">[${num}]</a>`;
             }
             return match;
         });
-        
-        // Convert bullet points with dashes to HTML lists
-        formatted = formatted.replace(/^- \s*/gm, '<li>');
-        formatted = formatted.replace(/\n- /g, '\n<li>');
-        if (formatted.includes('<li>')) {
-            formatted = formatted.replace(/(<li>.*?)(?=\n\n|$)/gs, '<ul>$1</ul>');
-        }
-        
         const paragraphs = formatted.split(/\n\n+/);
         return paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
-    };
-    
-    // Clean text function for display
-    const cleanDisplay = (text) => {
-        if (!text) return '';
-        return text.replace(/[*#_`]/g, '').trim();
     };
     
     // AI ANALYSIS SECTION
@@ -72,14 +58,13 @@ function renderResults(data, query) {
                 <span class="ai-icon">🤖</span>
                 <span>AI ANALYSIS OF RESEARCH</span>
             </div>
-            <div class="ai-text">${formatWithCitations(cleanDisplay(aiText), data.research?.citations)}</div>
+            <div class="ai-text">${formatWithCitations(aiText, data.research?.citations)}</div>
             <div class="ai-footer">📊 Based on ${sourcesUsed} sources (${govSourcesUsed} government) • ${data.aiAnalysis?.modelUsed || 'Groq Llama 3.3'}</div>
         </div>
     `;
     
-    // RESEARCH FINDINGS with clickable claim links
+    // RESEARCH FINDINGS SECTION
     let researchText = data.research?.text || 'Research findings will appear here.';
-    researchText = cleanDisplay(researchText);
     
     // Build categories HTML with clickable links
     let categoriesHtml = '';
@@ -89,21 +74,21 @@ function renderResults(data, query) {
         if (cats.statistics && cats.statistics.length > 0) {
             categoriesHtml += `<div class="category-section">
                 <h4>📊 Key Statistics Found</h4>
-                <ul>${cats.statistics.map(s => `<li><a href="${s.url}" target="_blank" class="claim-link">${cleanDisplay(s.text.substring(0, 200))}...</a></li>`).join('')}</ul>
+                <ul>${cats.statistics.map(s => `<li><a href="${s.url}" target="_blank" class="claim-link">${s.text.substring(0, 200)}...</a></li>`).join('')}</ul>
             </div>`;
         }
         
         if (cats.policy && cats.policy.length > 0) {
             categoriesHtml += `<div class="category-section">
                 <h4>⚖️ Policy Findings</h4>
-                <ul>${cats.policy.map(s => `<li><a href="${s.url}" target="_blank" class="claim-link">${cleanDisplay(s.text.substring(0, 200))}...</a></li>`).join('')}</ul>
+                <ul>${cats.policy.map(s => `<li><a href="${s.url}" target="_blank" class="claim-link">${s.text.substring(0, 200)}...</a></li>`).join('')}</ul>
             </div>`;
         }
         
         if (cats.economic && cats.economic.length > 0) {
             categoriesHtml += `<div class="category-section">
                 <h4>💰 Economic Data</h4>
-                <ul>${cats.economic.map(s => `<li><a href="${s.url}" target="_blank" class="claim-link">${cleanDisplay(s.text.substring(0, 200))}...</a></li>`).join('')}</ul>
+                <ul>${cats.economic.map(s => `<li><a href="${s.url}" target="_blank" class="claim-link">${s.text.substring(0, 200)}...</a></li>`).join('')}</ul>
             </div>`;
         }
     }
@@ -124,7 +109,7 @@ function renderResults(data, query) {
         </div>
     `;
     
-    // CITATIONS SECTION (clickable source links)
+    // CITATIONS SECTION
     const citationsHtml = data.research?.citations?.length > 0 ? `
         <div class="citations-card">
             <div class="citations-header">
@@ -136,9 +121,9 @@ function renderResults(data, query) {
                     <div class="citation-item">
                         <div class="citation-id">[${c.id}]</div>
                         <div class="citation-content">
-                            <div class="citation-text">${cleanDisplay(c.text.substring(0, 300))}${c.text.length > 300 ? '...' : ''}</div>
+                            <div class="citation-text">${c.text}</div>
                             <div class="citation-source">
-                                <span class="source-label">📌 ${cleanDisplay(c.source)}</span>
+                                <span class="source-label">📌 ${c.source}</span>
                                 <a href="${c.url}" target="_blank" class="source-link">🔗 View Original Source</a>
                             </div>
                         </div>
@@ -158,9 +143,9 @@ function renderResults(data, query) {
             <div class="news-list">
                 ${data.newsArticles.map(a => `
                     <div class="news-item">
-                        <a href="${a.url}" target="_blank" class="news-title">${cleanDisplay(a.title)}</a>
-                        <div class="news-meta">📌 ${cleanDisplay(a.source)}${a.date ? ` • 📅 ${a.date}` : ''}</div>
-                        ${a.description ? `<div class="news-desc">${cleanDisplay(a.description.substring(0, 150))}...</div>` : ''}
+                        <a href="${a.url}" target="_blank" class="news-title">${a.title}</a>
+                        <div class="news-meta">📌 ${a.source}${a.date ? ` • 📅 ${a.date}` : ''}</div>
+                        ${a.description ? `<div class="news-desc">${a.description}...</div>` : ''}
                     </div>
                 `).join('')}
             </div>
@@ -177,10 +162,10 @@ function renderResults(data, query) {
             <div class="videos-grid">
                 ${data.videoSources.map(v => `
                     <div class="video-item" onclick="window.open('${v.url}', '_blank')">
-                        ${v.thumbnail ? `<img src="${v.thumbnail}" alt="${cleanDisplay(v.title)}">` : '<div class="video-placeholder">🎬</div>'}
+                        ${v.thumbnail ? `<img src="${v.thumbnail}" alt="${v.title}">` : '<div class="video-placeholder">🎬</div>'}
                         <div class="video-info">
-                            <div class="video-title">${cleanDisplay(v.title)}</div>
-                            <div class="video-channel">${cleanDisplay(v.channel)}</div>
+                            <div class="video-title">${v.title}</div>
+                            <div class="video-channel">${v.channel}</div>
                         </div>
                     </div>
                 `).join('')}
@@ -190,6 +175,8 @@ function renderResults(data, query) {
     
     // ALL SOURCES SECTION
     const allSources = data.allSources || [];
+    const govSources = allSources.filter(s => s.isGovernment);
+    const otherSources = allSources.filter(s => !s.isGovernment);
     
     const sourcesHtml = allSources.length > 0 ? `
         <div class="sources-card">
@@ -197,22 +184,34 @@ function renderResults(data, query) {
                 <span class="sources-icon">📚</span>
                 <span>ALL RESEARCH SOURCES (${allSources.length})</span>
             </div>
-            <div class="sources-list">
-                ${allSources.slice(0, 50).map((s, i) => `
+            <div class="source-tabs" style="display: flex; gap: 10px; margin-bottom: 16px;">
+                <button class="tab-btn active" onclick="showSourceTab('gov')">🏛️ Government (${govSources.length})</button>
+                <button class="tab-btn" onclick="showSourceTab('other')">📄 Other Sources (${otherSources.length})</button>
+            </div>
+            <div id="govSources" class="source-tab-content active">
+                ${govSources.slice(0, 40).map((s, i) => `
                     <div class="source-item">
                         <span class="source-num">${i+1}.</span>
-                        <span class="source-type">${s.isGovernment ? '🏛️' : s.type === 'archive' ? '📜' : '🌐'}</span>
-                        <a href="${s.url}" target="_blank" class="source-link">${cleanDisplay(s.title || s.snippet?.substring(0, 80) || 'Untitled')}</a>
-                        <span class="source-domain">${cleanDisplay(s.source)}</span>
+                        <a href="${s.url}" target="_blank" class="source-link">${s.title || s.snippet?.substring(0, 80) || 'Untitled'}</a>
+                        <span class="source-domain">${s.source}</span>
                     </div>
                 `).join('')}
-                ${allSources.length > 50 ? `<div class="more-sources-note">+${allSources.length - 50} more sources available</div>` : ''}
+                ${govSources.length > 40 ? `<div class="more-sources">+${govSources.length - 40} more government sources</div>` : ''}
+            </div>
+            <div id="otherSources" class="source-tab-content" style="display: none;">
+                ${otherSources.slice(0, 40).map((s, i) => `
+                    <div class="source-item">
+                        <span class="source-num">${i+1}.</span>
+                        <a href="${s.url}" target="_blank" class="source-link">${s.title || s.snippet?.substring(0, 80) || 'Untitled'}</a>
+                        <span class="source-domain">${s.source}</span>
+                    </div>
+                `).join('')}
             </div>
         </div>
     ` : '';
     
     // STATS FOOTER
-    const totalGovCount = data.governmentSourcesCount || allSources.filter(s => s.isGovernment).length;
+    const totalGovCount = data.governmentSourcesCount || govSources.length;
     const totalArchiveCount = allSources.filter(s => s.type === "archive").length;
     const totalNewsCount = data.newsArticles?.length || 0;
     const totalVideoCount = data.videoSources?.length || 0;
@@ -220,7 +219,7 @@ function renderResults(data, query) {
     
     const statsHtml = `
         <div class="stats-footer">
-            <span>🔍 "${cleanDisplay(query.substring(0, 40))}${query.length > 40 ? '...' : ''}"</span>
+            <span>🔍 "${query.substring(0, 40)}${query.length > 40 ? '...' : ''}"</span>
             <span>🏛️ ${totalGovCount} Government Sources</span>
             <span>📜 ${totalArchiveCount} Archives</span>
             <span>📰 ${totalNewsCount} News Articles</span>
@@ -232,18 +231,31 @@ function renderResults(data, query) {
     container.innerHTML = aiHtml + researchHtml + citationsHtml + newsHtml + videosHtml + sourcesHtml + statsHtml;
 }
 
+function showSourceTab(tab) {
+    const govDiv = document.getElementById('govSources');
+    const otherDiv = document.getElementById('otherSources');
+    const btns = document.querySelectorAll('.tab-btn');
+    
+    btns.forEach(btn => btn.classList.remove('active'));
+    
+    if (tab === 'gov') {
+        if (govDiv) govDiv.style.display = 'block';
+        if (otherDiv) otherDiv.style.display = 'none';
+        if (btns[0]) btns[0].classList.add('active');
+    } else {
+        if (govDiv) govDiv.style.display = 'none';
+        if (otherDiv) otherDiv.style.display = 'block';
+        if (btns[1]) btns[1].classList.add('active');
+    }
+}
+
 function setSearch(topic) {
     document.getElementById('searchInput').value = topic;
     searchDebate();
 }
 
-function cleanDisplay(text) {
-    if (!text) return '';
-    return text.replace(/[*#_`]/g, '').trim();
-}
-
 // ========================================
-// STYLES (same as before, with claim-link added)
+// STYLES (your exact purple/black theme)
 // ========================================
 const styles = `
 <style>
@@ -296,7 +308,6 @@ h1 span { background: linear-gradient(135deg, #a78bfa 0%, #c084fc 100%); -webkit
 .citation-text { font-size: 0.85rem; color: #e4e4e7; margin-bottom: 8px; line-height: 1.4; }
 .citation-source { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 0.7rem; }
 .source-link { color: #34d399; text-decoration: none; padding: 4px 10px; background: rgba(16,185,129,0.1); border-radius: 20px; }
-.source-link:hover { background: rgba(16,185,129,0.2); text-decoration: underline; }
 
 .news-card { background: rgba(20,20,35,0.9); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px; margin-bottom: 24px; }
 .news-header { font-size: 1rem; font-weight: 700; color: #3b82f6; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px; }
@@ -313,10 +324,11 @@ h1 span { background: linear-gradient(135deg, #a78bfa 0%, #c084fc 100%); -webkit
 
 .sources-card { background: rgba(20,20,35,0.9); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 24px; margin-bottom: 24px; }
 .sources-header { font-size: 1rem; font-weight: 700; color: #a78bfa; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px; }
-.sources-list { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
+.source-tabs { display: flex; gap: 10px; margin-bottom: 16px; }
+.tab-btn { background: rgba(255,255,255,0.05); border: none; padding: 8px 16px; border-radius: 30px; color: #a1a1aa; cursor: pointer; }
+.tab-btn.active { background: #6366f1; color: white; }
 .source-item { font-size: 0.75rem; padding: 8px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.05); }
 .source-link { color: #60a5fa; text-decoration: none; flex: 1; }
-.source-link:hover { text-decoration: underline; }
 
 .stats-footer { background: rgba(0,0,0,0.3); border-radius: 40px; padding: 12px 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; font-size: 0.7rem; color: #a1a1aa; margin-top: 20px; }
 .stats-footer span { padding: 4px 10px; background: rgba(255,255,255,0.05); border-radius: 30px; }
@@ -344,9 +356,10 @@ if (!document.querySelector('#debate-styles')) {
 
 window.searchDebate = searchDebate;
 window.setSearch = setSearch;
+window.showSourceTab = showSourceTab;
 
 document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') searchDebate();
 });
 
-console.log('DebateSpace CLEAN RESEARCH loaded');
+console.log('DebateSpace PERFECTED loaded');
