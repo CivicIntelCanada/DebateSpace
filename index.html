@@ -2,47 +2,385 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>DebateSpace • Deep Research with Government Sources</title>
-    <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Debate Space — Source-Grounded Fact Research</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0b0f1c;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            padding: 2rem 1.5rem;
+            color: #eef2ff;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #c0e0ff, #a07aff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: -0.3px;
+        }
+
+        .header p {
+            color: #8e9ac0;
+            margin-top: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .search-area {
+            background: #11161f;
+            border-radius: 60px;
+            padding: 0.3rem;
+            display: flex;
+            gap: 0.5rem;
+            border: 1px solid #2a2f3f;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .search-area input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 1rem 1.5rem;
+            font-size: 1rem;
+            color: #f0f3ff;
+            outline: none;
+        }
+
+        .search-area input::placeholder {
+            color: #4b5570;
+        }
+
+        .search-area button {
+            background: #2d3b6e;
+            border: none;
+            padding: 0 2rem;
+            border-radius: 50px;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.95rem;
+        }
+
+        .search-area button:hover {
+            background: #3e4e88;
+        }
+
+        .results-panel {
+            display: flex;
+            gap: 1.8rem;
+            flex-wrap: wrap;
+        }
+
+        .claim-box, .research-box {
+            flex: 1;
+            min-width: 280px;
+            background: #0f131e;
+            border-radius: 28px;
+            border: 1px solid #252b3a;
+            overflow: hidden;
+            backdrop-filter: blur(2px);
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            padding: 1.2rem 1.5rem;
+            background: #0a0e17;
+            border-bottom: 1px solid #252b3a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .content-pad {
+            padding: 1.5rem;
+        }
+
+        .claim-text {
+            font-size: 1.25rem;
+            font-weight: 500;
+            background: #090c14;
+            padding: 1rem;
+            border-radius: 20px;
+            margin-bottom: 1.2rem;
+            border-left: 4px solid #5f7ef2;
+        }
+
+        .fact-badge {
+            display: inline-block;
+            padding: 0.3rem 0.9rem;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin: 0.5rem 0 1rem 0;
+        }
+
+        .badge-true {
+            background: #0f3b2c;
+            color: #4ade80;
+        }
+
+        .badge-false {
+            background: #3b1e2a;
+            color: #f87171;
+        }
+
+        .badge-mixed {
+            background: #3b2e1a;
+            color: #facc15;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1.2rem 0;
+        }
+
+        .stat-card {
+            background: #0b0f19;
+            border-radius: 18px;
+            padding: 0.9rem;
+            border: 1px solid #262d3d;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: #7e8bb0;
+            letter-spacing: 1px;
+        }
+
+        .stat-number {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-top: 6px;
+            word-break: break-word;
+        }
+
+        .source-list {
+            margin: 1rem 0 0 0;
+            padding-left: 1.2rem;
+        }
+
+        .source-list li {
+            margin: 0.6rem 0;
+            font-size: 0.85rem;
+        }
+
+        .source-list a {
+            color: #8eaeff;
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        .source-list a:hover {
+            text-decoration: underline;
+        }
+
+        .rabbit-hole {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px dashed #2e3548;
+            font-size: 0.85rem;
+        }
+
+        .loading {
+            color: #7a87af;
+            font-style: italic;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        hr {
+            border-color: #262d3d;
+            margin: 1rem 0;
+        }
+
+        .region-badge {
+            display: inline-block;
+            background: #1e2438;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            margin-right: 0.5rem;
+        }
+
+        .source-quote {
+            background: #0a0e17;
+            padding: 0.75rem;
+            border-radius: 12px;
+            margin: 0.5rem 0;
+            font-size: 0.8rem;
+            border-left: 3px solid #5f7ef2;
+        }
+
+        @media (max-width: 800px) {
+            body { padding: 1rem; }
+            .search-area { flex-direction: column; border-radius: 30px; }
+            .search-area button { padding: 0.8rem; }
+        }
+    </style>
 </head>
 <body>
-    <div class="main-container">
-        <div class="site-header">
-            <div class="logo-badge">⚖️</div>
-            <h1>Debate<span>Space</span></h1>
-            <p class="tagline">Fact Check · Government Sources · News Articles · Video Explanations</p>
-        </div>
-
-        <div class="search-section">
-            <div class="search-container">
-                <div class="search-icon">🔍</div>
-                <input type="text" id="searchInput" placeholder='Ask any question... e.g., "ICE agent training requirements" or "Canada immigration 2026"'>
-                <button id="searchBtn" onclick="searchDebate()">Fact Check</button>
-            </div>
-            <div class="search-tips">
-                <span>💡 Try:</span>
-                <button class="tip-btn" onclick="setSearch('ICE agent training requirements')">ICE training</button>
-                <button class="tip-btn" onclick="setSearch('Canada immigration 2026')">Canada immigration</button>
-                <button class="tip-btn" onclick="setSearch('US inflation rate')">US inflation</button>
-                <button class="tip-btn" onclick="setSearch('Climate change facts')">Climate facts</button>
-            </div>
-        </div>
-
-        <div id="loading" class="loading" style="display: none;">
-            <div class="spinner"></div>
-            <p>🔍 Searching government sources & generating analysis...</p>
-        </div>
-
-        <div id="results" class="results"></div>
-
-        <div class="site-footer">
-            <p>📊 Sources: Government Websites (.gov, .gc.ca) • GNews • YouTube • Tavily AI • Groq AI</p>
-            <p>🎯 Click any [number] citation to verify the source directly</p>
-        </div>
+<div class="container">
+    <div class="header">
+        <h1>⚖️ DEBATE SPACE · SOURCE-GROUNDED RESEARCH</h1>
+        <p>🔒 All API calls go through secure backend — keys never exposed</p>
     </div>
 
-    <script src="script.js"></script>
+    <div class="search-area">
+        <input type="text" id="queryInput" placeholder="e.g., 'US vs China GDP 2024' or 'Canada housing affordability' or 'EU inflation rate'">
+        <button id="searchBtn">🔍 RESEARCH RABBIT HOLE</button>
+    </div>
+
+    <div class="results-panel">
+        <div class="claim-box">
+            <div class="section-title"><span>📢 VERDICT (source-grounded)</span></div>
+            <div class="content-pad" id="claimPanel">
+                <div class="loading">Enter a topic to start deep research...</div>
+            </div>
+        </div>
+
+        <div class="research-box">
+            <div class="section-title"><span>📚 SOURCES & RAW DATA</span></div>
+            <div class="content-pad" id="researchPanel">
+                <div class="loading">Ready — backend will search all government sources securely...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const searchBtn = document.getElementById('searchBtn');
+    const queryInput = document.getElementById('queryInput');
+    const claimPanel = document.getElementById('claimPanel');
+    const researchPanel = document.getElementById('researchPanel');
+    let activeRequest = false;
+
+    async function deepResearch(query) {
+        if (!query.trim() || activeRequest) return;
+        activeRequest = true;
+
+        claimPanel.innerHTML = '<div class="loading">🔍 Searching government databases across NA, Asia, EU, TT, News...</div>';
+        researchPanel.innerHTML = '<div class="loading">📡 Fetching sources from your 200+ government sites via secure backend...</div>';
+
+        try {
+            // Call your secure backend API (Vercel serverless function)
+            const response = await fetch('/api/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query: query })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Backend request failed');
+            }
+
+            if (data.govResults.length === 0) {
+                claimPanel.innerHTML = `<div class="loading">⚠️ No government sources found for "${escapeHtml(query)}".<br><br>Try a different query.</div>`;
+                researchPanel.innerHTML = `<div class="loading">No results from any CSE.</div>`;
+                activeRequest = false;
+                return;
+            }
+
+            // Display results from backend
+            const analysis = data.analysis;
+            const govResults = data.govResults;
+
+            let verdictHtml = '';
+            if (analysis) {
+                const verdictClass = analysis.verdict === 'FACT' ? 'badge-true' : 
+                                    analysis.verdict === 'DEBUNK' ? 'badge-false' : 'badge-mixed';
+                verdictHtml = `
+                    <div class="claim-text">“${escapeHtml(query)}”</div>
+                    <div class="fact-badge ${verdictClass}">🎯 ${analysis.verdict}</div>
+                    <p><strong>📊 Confidence (source-based):</strong> ${analysis.confidence}%</p>
+                    <p><strong>📝 Source-grounded summary:</strong> ${escapeHtml(analysis.summary)}</p>
+                    ${analysis.key_findings ? `<div class="stat-grid">${analysis.key_findings.map(f => `<div class="stat-card"><div class="stat-number" style="font-size:0.9rem;">✓ ${escapeHtml(f)}</div></div>`).join('')}</div>` : ''}
+                    <p><strong>⚠️ Contradictions in sources:</strong> ${escapeHtml(analysis.contradictions || 'None found — sources are consistent')}</p>
+                    <p><strong>🔍 Missing context needed:</strong> ${escapeHtml(analysis.missing_context || 'Sources provide sufficient coverage')}</p>
+                    <hr>
+                    <p style="font-size:0.75rem; color:#7e8bb0;">🔒 This verdict is based SOLELY on ${govResults.length} government sources from your database. No external knowledge or AI training data was used.</p>
+                `;
+            } else {
+                verdictHtml = `
+                    <div class="claim-text">“${escapeHtml(query)}”</div>
+                    <div class="fact-badge badge-mixed">⚠️ ANALYSIS UNAVAILABLE</div>
+                    <p>Here are ${govResults.length} raw sources for manual review:</p>
+                    <ul class="source-list">
+                        ${govResults.slice(0, 8).map(s => `<li><span class="region-badge">${escapeHtml(s.region)}</span> <a href="${escapeHtml(s.link)}" target="_blank">${escapeHtml(s.title)}</a></li>`).join('')}
+                    </ul>
+                `;
+            }
+            claimPanel.innerHTML = verdictHtml;
+
+            let fullSourcesHtml = `<div><strong>🏛️ ALL GOVERNMENT SOURCES (${govResults.length} total — used for GROQ summary)</strong><ul class="source-list">`;
+            for (const s of govResults) {
+                fullSourcesHtml += `<li>
+                    <span class="region-badge">${escapeHtml(s.region)}</span>
+                    <a href="${escapeHtml(s.link)}" target="_blank"><strong>${escapeHtml(s.title)}</strong></a>
+                    <div class="source-quote">📖 "${escapeHtml(s.snippet?.substring(0, 200))}..."</div>
+                </li>`;
+            }
+            fullSourcesHtml += `</ul></div>`;
+
+            fullSourcesHtml += `<div class="rabbit-hole">🕳️ <strong>DIG DEEPER (rabbit hole — using your database):</strong><br>
+            → Ask for follow-up: "Compare these ${govResults.length} sources by region"<br>
+            → Search within specific domains: <code>site:statcan.gc.ca ${escapeHtml(query)}</code><br>
+            → Request: "What year ranges do these sources cover?"<br>
+            → Cross-reference with UN/OECD data via your other CSEs
+            </div>`;
+
+            researchPanel.innerHTML = fullSourcesHtml;
+
+        } catch (err) {
+            console.error(err);
+            claimPanel.innerHTML = `<div class="loading">⚠️ Error: ${err.message}</div>`;
+            researchPanel.innerHTML = `<div class="loading">Make sure your backend API is deployed correctly.</div>`;
+        } finally {
+            activeRequest = false;
+        }
+    }
+
+    function escapeHtml(str) { 
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) { 
+            if (m === '&') return '&amp;'; 
+            if (m === '<') return '&lt;'; 
+            if (m === '>') return '&gt;'; 
+            return m; 
+        });
+    }
+
+    searchBtn.addEventListener('click', () => deepResearch(queryInput.value));
+    queryInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') deepResearch(queryInput.value); });
+    
+    console.log('✅ Debate Space ready — all API calls go through secure backend');
+</script>
 </body>
 </html>
