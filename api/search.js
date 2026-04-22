@@ -1,6 +1,5 @@
 // ============================================
-// DEBATESPACE - DEEP RESEARCH v2 (FIXED)
-// Preserves all original functionality + adds citations
+// DEBATESPACE - DEEP RESEARCH API
 // ============================================
 
 export default async function handler(req, res) {
@@ -18,7 +17,7 @@ export default async function handler(req, res) {
         let allResults = [];
         
         // ========================================
-        // SEARCH ALL CX ENGINES (YOUR ORIGINAL CODE)
+        // SEARCH ALL CX ENGINES
         // ========================================
         const cxEngines = [
             { name: 'North America', cx: process.env.GOOGLE_SEARCH_CX_NA },
@@ -37,9 +36,9 @@ export default async function handler(req, res) {
         }
         
         // ========================================
-        // SEARCH GOVERNMENT DOMAINS (expanded)
+        // SEARCH GOVERNMENT DOMAINS
         // ========================================
-        const govDomains = ['.gov', '.gc.ca', '.gov.uk', '.mil', '.gov.au', '.govt.nz', '.gouv.fr', '.gob.es', '.gov.it', '.gov.de', '.go.jp', '.go.kr', '.gov.sg', '.gov.in'];
+        const govDomains = ['.gov', '.gc.ca', '.gov.uk', '.mil'];
         
         for (const domain of govDomains) {
             if (apiKey) {
@@ -51,7 +50,7 @@ export default async function handler(req, res) {
         // ========================================
         // SEARCH ARCHIVES
         // ========================================
-        const archives = ['archive.org', 'archives.gov', 'census.gov', 'data.gov', 'worldbank.org', 'imf.org', 'oecd.org', 'who.int', 'un.org', 'europa.eu', 'statcan.gc.ca', 'bls.gov', 'ons.gov.uk'];
+        const archives = ['archive.org', 'archives.gov', 'census.gov', 'data.gov', 'worldbank.org', 'imf.org', 'oecd.org'];
         
         for (const archive of archives) {
             const results = await searchArchive(apiKey, archive, query);
@@ -59,23 +58,13 @@ export default async function handler(req, res) {
         }
         
         // ========================================
-        // TAVILY SEARCH (YOUR ORIGINAL CODE)
+        // TAVILY SEARCH
         // ========================================
         const tavilyResults = await tavilySearch(query);
         allResults.push(...tavilyResults);
         
         // ========================================
-        // FILTER OUT LOW-AUTHORITY SITES (NEW)
-        // ========================================
-        const blockedDomains = ['wikipedia.org', 'reddit.com', 'blogspot.com', 'wordpress.com', 'medium.com', 'quora.com', 'wikia.com', 'fandom.com'];
-        allResults = allResults.filter(result => {
-            const url = result.url || '';
-            const source = result.source || '';
-            return !blockedDomains.some(blocked => url.includes(blocked) || source.includes(blocked));
-        });
-        
-        // ========================================
-        // REMOVE DUPLICATES (YOUR ORIGINAL CODE)
+        // REMOVE DUPLICATES
         // ========================================
         const uniqueResults = [];
         const seenUrls = new Set();
@@ -86,7 +75,7 @@ export default async function handler(req, res) {
             }
         }
         
-        // Fix: Properly identify government sources
+        // Fix: Properly identify government sources (check URL and source field)
         for (const result of uniqueResults) {
             const url = result.url || '';
             const source = result.source || '';
@@ -95,8 +84,6 @@ export default async function handler(req, res) {
                 url.includes('.gc.ca') || 
                 url.includes('.mil') ||
                 url.includes('.gov.uk') ||
-                url.includes('.gov.au') ||
-                url.includes('.govt.nz') ||
                 source.includes('.gov') ||
                 source.includes('gc.ca')
             );
@@ -106,17 +93,17 @@ export default async function handler(req, res) {
         console.log(`\n📊 TOTAL SOURCES: ${uniqueResults.length} (${govCount} government)`);
         
         // ========================================
-        // BUILD RESEARCH ANSWER (YOUR ORIGINAL FORMAT)
+        // BUILD RESEARCH ANSWER
         // ========================================
         const researchAnswer = buildResearchAnswer(query, uniqueResults);
         
         // ========================================
-        // GENERATE AI ANALYSIS (YOUR ORIGINAL CODE - NO CHANGES)
+        // GENERATE AI ANALYSIS
         // ========================================
         const aiAnalysis = await generateAIAnalysis(query, uniqueResults);
         
         // ========================================
-        // GET SUPPLEMENTAL CONTENT (YOUR ORIGINAL CODE)
+        // GET SUPPLEMENTAL CONTENT
         // ========================================
         const newsResults = await getNews(query);
         const videoResults = await getVideos(query);
@@ -147,10 +134,6 @@ export default async function handler(req, res) {
         });
     }
 }
-
-// ============================================
-// SEARCH FUNCTIONS (YOUR ORIGINAL CODE - UNCHANGED)
-// ============================================
 
 async function searchCX(apiKey, cx, query) {
     const results = [];
@@ -317,9 +300,6 @@ function cleanText(text) {
     return cleaned;
 }
 
-// ============================================
-// BUILD RESEARCH ANSWER (YOUR ORIGINAL FORMAT + CITATIONS)
-// ============================================
 function buildResearchAnswer(query, sources) {
     const govSources = sources.filter(s => s.isGovernment === true);
     const otherSources = sources.filter(s => !s.isGovernment);
@@ -338,27 +318,11 @@ function buildResearchAnswer(query, sources) {
     let citationId = 1;
     let fullText = `Found ${sortedSources.length} sources (${govSources.length} government sources, ${sortedSources.length - govSources.length} other sources) about "${query}". `;
     
-    // Group findings by category (NEW but won't break existing display)
-    const categories = {
-        statistics: [],
-        policy: [],
-        economic: []
-    };
-    
     for (const source of sortedSources.slice(0, 25)) {
         let quote = source.snippet || source.title || '';
         quote = cleanText(quote);
         
         if (quote.length > 40 && !quote.toLowerCase().includes('search')) {
-            // Categorize based on content
-            if (quote.match(/\d+%|\$\d+|\d+ billion|\d+ million|\d+,\d+|\d+\.\d+/)) {
-                categories.statistics.push({ text: quote.substring(0, 350), url: source.url });
-            } else if (quote.match(/policy|law|regulation|act|bill|plan|strategy|program/i)) {
-                categories.policy.push({ text: quote.substring(0, 350), url: source.url });
-            } else if (quote.match(/econom|gdp|inflation|market|trade|fee|cost|price|tax/i)) {
-                categories.economic.push({ text: quote.substring(0, 350), url: source.url });
-            }
-            
             fullText += `[${citationId}] "${quote.substring(0, 200)}... " `;
             
             citations.push({
@@ -372,28 +336,16 @@ function buildResearchAnswer(query, sources) {
         }
     }
     
-    if (categories.statistics.length > 0) {
-        fullText += ` Found ${categories.statistics.length} key statistics. `;
-    }
-    
     fullText += ` Click any [number] to verify the source.`;
     
     return {
         text: fullText,
         citations: citations,
         evidenceCount: sortedSources.length,
-        governmentCount: govSources.length,
-        categories: {
-            statistics: categories.statistics.slice(0, 5),
-            policy: categories.policy.slice(0, 5),
-            economic: categories.economic.slice(0, 5)
-        }
+        governmentCount: govSources.length
     };
 }
 
-// ============================================
-// GENERATE AI ANALYSIS (YOUR ORIGINAL CODE - UNCHANGED)
-// ============================================
 async function generateAIAnalysis(query, sources) {
     const groqKey = process.env.GROQ_API_KEY;
     
