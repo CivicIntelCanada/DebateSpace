@@ -1,4 +1,4 @@
-#// DebateSpace Frontend - Deep Research v2
+// DebateSpace Frontend - with category support
 
 let currentData = null;
 
@@ -27,7 +27,7 @@ async function searchDebate() {
 function renderResults(data) {
     const resultsDiv = document.getElementById('results');
     
-    // Header stats
+    // Stats bar (preserves your original style)
     let html = `
         <div class="stats-bar">
             <span>📊 ${data.totalSourcesFound} sources</span>
@@ -36,173 +36,132 @@ function renderResults(data) {
         </div>
     `;
     
-    // AI Analysis Section (with citations)
+    // AI Analysis Section (YOUR ORIGINAL FORMAT)
     if (data.aiAnalysis && data.aiAnalysis.text) {
-        let aiText = data.aiAnalysis.text;
-        // Convert inline citations to clickable links
-        aiText = aiText.replace(/\[source:\s*(https?:\/\/[^\s\]]+)\]/gi, (match, url) => {
-            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="citation-link">[source]</a>`;
-        });
-        
         html += `
-            <div class="card ai-card">
-                <div class="card-header">
-                    <span class="card-icon">🤖</span>
-                    <h2>AI Fact-Check Analysis</h2>
-                    <span class="badge">${data.aiAnalysis.modelUsed || 'Groq AI'}</span>
+            <div class="ai-section">
+                <div class="section-header">
+                    <span class="section-icon">🤖</span>
+                    <h3>AI Analysis of Research</h3>
                 </div>
-                <div class="ai-content">
-                    ${aiText.replace(/\n/g, '<br>')}
+                <div class="ai-analysis-content">
+                    ${data.aiAnalysis.text.replace(/\n/g, '<br>')}
                 </div>
-                <div class="card-footer">
-                    Based on ${data.aiAnalysis.sourcesUsed} sources (${data.aiAnalysis.governmentSourcesUsed} government)
+                <div class="analysis-footer">
+                    Based on ${data.aiAnalysis.sourcesUsed} sources (${data.aiAnalysis.governmentSourcesUsed} government) • ${data.aiAnalysis.modelUsed}
                 </div>
             </div>
         `;
     }
     
-    // Deep Research Categories (Statistics, Policy, Economic)
+    // NEW: Category sections (Statistics, Policy, Economic)
     if (data.research && data.research.categories) {
         const categories = data.research.categories;
-        const categoryOrder = ['statistics', 'policy', 'economic'];
-        const categoryTitles = {
-            statistics: '📈 Key Statistics',
-            policy: '⚖️ Policy Findings',
-            economic: '💰 Economic Data'
-        };
         
-        for (const cat of categoryOrder) {
-            if (categories[cat] && categories[cat].length > 0) {
-                html += `
-                    <div class="card category-card">
-                        <div class="card-header">
-                            <span class="card-icon">${categoryTitles[cat][0]}</span>
-                            <h2>${categoryTitles[cat]}</h2>
-                        </div>
-                        <div class="category-content">
-                `;
-                for (const item of categories[cat]) {
-                    html += `
-                        <div class="finding-item">
-                            <p>${item.sentence}</p>
-                            <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="citation-number">[${item.citationId}]</a>
-                        </div>
-                    `;
-                }
-                html += `</div></div>`;
+        if (categories.statistics && categories.statistics.length > 0) {
+            html += `<div class="section-header"><span class="section-icon">📊</span><h3>Key Statistics</h3></div>`;
+            for (const stat of categories.statistics) {
+                html += `<div class="citation-item"><div class="citation-text">${stat.text.substring(0, 300)}...</div><a href="${stat.url}" target="_blank" class="source-link">🔗 Verify source</a></div>`;
+            }
+        }
+        
+        if (categories.policy && categories.policy.length > 0) {
+            html += `<div class="section-header"><span class="section-icon">⚖️</span><h3>Policy Findings</h3></div>`;
+            for (const policy of categories.policy) {
+                html += `<div class="citation-item"><div class="citation-text">${policy.text.substring(0, 300)}...</div><a href="${policy.url}" target="_blank" class="source-link">🔗 Verify source</a></div>`;
+            }
+        }
+        
+        if (categories.economic && categories.economic.length > 0) {
+            html += `<div class="section-header"><span class="section-icon">💰</span><h3>Economic Data</h3></div>`;
+            for (const econ of categories.economic) {
+                html += `<div class="citation-item"><div class="citation-text">${econ.text.substring(0, 300)}...</div><a href="${econ.url}" target="_blank" class="source-link">🔗 Verify source</a></div>`;
             }
         }
     }
     
-    // Compiler Summary
-    if (data.research && data.research.compilerSummary) {
+    // Research text (YOUR ORIGINAL)
+    if (data.research && data.research.text) {
         html += `
-            <div class="card compiler-card">
-                <div class="card-header">
-                    <span class="card-icon">📚</span>
-                    <h2>Source Compilation</h2>
+            <div class="research-summary">
+                <div class="section-header">
+                    <span class="section-icon">📚</span>
+                    <h3>Research & Findings</h3>
                 </div>
-                <div class="compiler-content">
-                    <p>${data.research.compilerSummary}</p>
-                </div>
+                <p>${data.research.text}</p>
             </div>
         `;
     }
     
-    // Citations List (detailed)
+    // Citations (YOUR ORIGINAL FORMAT)
     if (data.research && data.research.citations && data.research.citations.length > 0) {
-        html += `
-            <div class="card citations-card">
-                <div class="card-header">
-                    <span class="card-icon">📄</span>
-                    <h2>Verified Source Citations</h2>
-                </div>
-                <div class="citations-list">
-        `;
-        for (const citation of data.research.citations.slice(0, 25)) {
+        html += `<div class="section-header"><span class="section-icon">📄</span><h3>Source Citations (${data.research.citations.length})</h3></div>`;
+        html += `<div class="citations-container">`;
+        for (const citation of data.research.citations) {
             html += `
-                <div class="citation-item" id="citation-${citation.id}">
-                    <span class="citation-id">[${citation.id}]</span>
-                    <div class="citation-details">
-                        <strong>${citation.source}</strong><br>
-                        <span class="citation-text">${citation.text.substring(0, 200)}...</span><br>
-                        <a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="citation-link">🔗 Verify source →</a>
+                <div class="citation-card" id="citation-${citation.id}">
+                    <div class="citation-header">
+                        <span class="citation-number">[${citation.id}]</span>
+                        <strong>${citation.source}</strong>
+                    </div>
+                    <div class="citation-snippet">${citation.text}</div>
+                    <div class="citation-link">
+                        <a href="${citation.url}" target="_blank" rel="noopener noreferrer">🔗 Verify source →</a>
                     </div>
                 </div>
             `;
         }
-        html += `</div></div>`;
+        html += `</div>`;
     }
     
-    // News Articles
+    // News (YOUR ORIGINAL)
     if (data.newsArticles && data.newsArticles.length > 0) {
-        html += `
-            <div class="card news-card">
-                <div class="card-header">
-                    <span class="card-icon">📰</span>
-                    <h2>Recent News</h2>
-                </div>
-                <div class="news-grid">
-        `;
-        for (const article of data.newsArticles.slice(0, 6)) {
+        html += `<div class="section-header"><span class="section-icon">📰</span><h3>Recent News Articles</h3></div>`;
+        html += `<div class="news-grid">`;
+        for (const article of data.newsArticles) {
             html += `
-                <div class="news-item">
-                    <a href="${article.url}" target="_blank" rel="noopener noreferrer">
-                        <strong>${article.title}</strong>
-                    </a>
+                <div class="news-card">
+                    <a href="${article.url}" target="_blank" rel="noopener noreferrer"><strong>${article.title}</strong></a>
                     <div class="news-meta">${article.source} • ${article.date || ''}</div>
                     <p>${article.description || ''}</p>
                 </div>
             `;
         }
-        html += `</div></div>`;
+        html += `</div>`;
     }
     
-    // Videos
+    // Videos (YOUR ORIGINAL)
     if (data.videoSources && data.videoSources.length > 0) {
-        html += `
-            <div class="card video-card">
-                <div class="card-header">
-                    <span class="card-icon">🎥</span>
-                    <h2>Video Explanations</h2>
-                </div>
-                <div class="video-grid">
-        `;
-        for (const video of data.videoSources.slice(0, 4)) {
+        html += `<div class="section-header"><span class="section-icon">🎥</span><h3>Video Explanations</h3></div>`;
+        html += `<div class="videos-grid">`;
+        for (const video of data.videoSources) {
             html += `
-                <div class="video-item">
+                <div class="video-card">
                     <a href="${video.url}" target="_blank" rel="noopener noreferrer">
-                        ${video.thumbnail ? `<img src="${video.thumbnail}" alt="${video.title}" class="video-thumb">` : ''}
+                        ${video.thumbnail ? `<img src="${video.thumbnail}" class="video-thumbnail" alt="">` : ''}
                         <strong>${video.title}</strong>
                     </a>
-                    <div class="video-meta">${video.channel}</div>
+                    <div class="video-channel">${video.channel}</div>
                 </div>
             `;
         }
-        html += `</div></div>`;
+        html += `</div>`;
     }
     
-    // All Sources (fallback)
+    // All Sources (YOUR ORIGINAL)
     if (data.allSources && data.allSources.length > 0) {
-        html += `
-            <div class="card all-sources-card">
-                <div class="card-header">
-                    <span class="card-icon">🌐</span>
-                    <h2>All Sources (${data.allSources.length})</h2>
-                </div>
-                <div class="sources-list">
-        `;
-        for (const src of data.allSources.slice(0, 20)) {
+        html += `<div class="section-header"><span class="section-icon">🌐</span><h3>All Sources (${data.allSources.length})</h3></div>`;
+        html += `<div class="sources-list">`;
+        for (const src of data.allSources) {
+            const badge = src.isGovernment ? '🏛️ ' : '📄 ';
             html += `
                 <div class="source-item">
-                    <a href="${src.url}" target="_blank" rel="noopener noreferrer">
-                        ${src.isGovernment ? '🏛️ ' : '📄 '}${src.title || src.source}
-                    </a>
-                    <div class="source-meta">${src.source}</div>
+                    <a href="${src.url}" target="_blank" rel="noopener noreferrer">${badge}${src.title || src.source}</a>
+                    <div class="source-domain">${src.source}</div>
                 </div>
             `;
         }
-        html += `</div></div>`;
+        html += `</div>`;
     }
     
     resultsDiv.innerHTML = html;
@@ -213,6 +172,5 @@ function setSearch(query) {
     searchDebate();
 }
 
-// Make functions global for inline buttons
 window.searchDebate = searchDebate;
 window.setSearch = setSearch;
