@@ -1,6 +1,6 @@
 // ============================================
-// DEBATESPACE - PERFECTED DEEP RESEARCH API
-// Fixes: government source detection, markdown cleaning, deep research
+// DEBATESPACE - DEEP RESEARCH v2
+// Changes: No hardcoded data, gov priority, citations in AI, exclude low-authority sites
 // ============================================
 
 export default async function handler(req, res) {
@@ -65,6 +65,16 @@ export default async function handler(req, res) {
         allResults.push(...tavilyResults);
         
         // ========================================
+        // FILTER OUT LOW-AUTHORITY SITES
+        // ========================================
+        const blockedDomains = ['wikipedia.org', 'reddit.com', 'blogspot.com', 'wordpress.com', 'medium.com', 'quora.com', 'wikia.com', 'fandom.com'];
+        allResults = allResults.filter(result => {
+            const url = result.url || '';
+            const source = result.source || '';
+            return !blockedDomains.some(blocked => url.includes(blocked) || source.includes(blocked));
+        });
+        
+        // ========================================
         // REMOVE DUPLICATES
         // ========================================
         const uniqueResults = [];
@@ -92,18 +102,25 @@ export default async function handler(req, res) {
             );
         }
         
+        // Sort: government first, then think tanks, then news
+        uniqueResults.sort((a, b) => {
+            if (a.isGovernment && !b.isGovernment) return -1;
+            if (!a.isGovernment && b.isGovernment) return 1;
+            return 0;
+        });
+        
         const govCount = uniqueResults.filter(r => r.isGovernment).length;
         console.log(`\n📊 TOTAL SOURCES: ${uniqueResults.length} (${govCount} government)`);
         
         // ========================================
-        // BUILD RESEARCH ANSWER
+        // BUILD DEEP RESEARCH ANSWER (with full sentences + citations)
         // ========================================
-        const researchAnswer = buildResearchAnswer(query, uniqueResults);
+        const researchAnswer = buildDeepResearchAnswer(query, uniqueResults);
         
         // ========================================
-        // GENERATE AI ANALYSIS
+        // GENERATE AI ANALYSIS WITH CITATIONS
         // ========================================
-        const aiAnalysis = await generateAIAnalysis(query, uniqueResults);
+        const aiAnalysis = await generateAIAnalysisWithCitations(query, uniqueResults);
         
         // ========================================
         // GET SUPPLEMENTAL CONTENT
@@ -139,7 +156,7 @@ export default async function handler(req, res) {
 }
 
 // ============================================
-// SEARCH FUNCTIONS
+// SEARCH FUNCTIONS (unchanged but included for completeness)
 // ============================================
 
 async function searchCX(apiKey, cx, query) {
@@ -157,7 +174,7 @@ async function searchCX(apiKey, cx, query) {
                         title: cleanText(item.title),
                         url: item.link,
                         snippet: cleanText(item.snippet || ''),
-                        isGovernment: false // Will be fixed later
+                        isGovernment: false
                     });
                 }
             }
@@ -295,68 +312,61 @@ async function getVideos(query) {
     return [];
 }
 
-// ============================================
-// CLEAN TEXT (removes markdown artifacts)
-// ============================================
 function cleanText(text) {
     if (!text) return '';
     let cleaned = text;
-    // Remove markdown headers
     cleaned = cleaned.replace(/^#{1,6}\s+/gm, '');
     cleaned = cleaned.replace(/\n#{1,6}\s+/g, '\n');
-    // Remove asterisks
     cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '$1');
     cleaned = cleaned.replace(/\*([^*]+)\*/g, '$1');
-    // Remove markdown links
     cleaned = cleaned.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
-    // Clean up whitespace
     cleaned = cleaned.replace(/\s+/g, ' ').trim();
     return cleaned;
 }
 
 // ============================================
-// BUILD RESEARCH ANSWER
+// DEEP RESEARCH ANSWER (with full sentences + citations)
 // ============================================
-function buildResearchAnswer(query, sources) {
+function buildDeepResearchAnswer(query, sources) {
     const govSources = sources.filter(s => s.isGovernment === true);
     const otherSources = sources.filter(s => !s.isGovernment);
-    const sortedSources = [...govSources, ...otherSources];
     
-    if (sortedSources.length === 0) {
+    if (sources.length === 0) {
         return {
             text: `No sources found for "${query}". Try different keywords.`,
             citations: [],
             evidenceCount: 0,
-            governmentCount: 0
+            governmentCount: 0,
+            categories: {},
+            compilerSummary: "No sources available."
         };
     }
     
     const citations = [];
     let citationId = 1;
-    let fullText = `Found ${sortedSources.length} sources (${govSources.length} government sources, ${sortedSources.length - govSources.length} other sources) about "${query}". `;
     
-    // Group findings by category
+    // Organize by category with full sentences
     const categories = {
         statistics: [],
         policy: [],
         economic: []
     };
     
-    for (const source of sortedSources.slice(0, 25)) {
+    for (const source of sources.slice(0, 30)) {
         let quote = source.snippet || source.title || '';
         quote = cleanText(quote);
-        
         if (quote.length > 40 && !quote.toLowerCase().includes('search')) {
-            // Categorize based on content
-            if (quote.match(/\d+%|\$\d+|\d+ billion|\d+ million|\d+,\d+|\d+\.\d+/)) {
-                categories.statistics.push({ text: quote.substring(0, 350), url: source.url });
-            } else if (quote.match(/policy|law|regulation|act|bill|plan|strategy|program/i)) {
-                categories.policy.push({ text: quote.substring(0, 350), url: source.url });
-            } else if (quote.match(/econom|gdp|inflation|market|trade|fee|cost|price|tax/i)) {
-                categories.economic.push({ text: quote.substring(0, 350), url: source.url });
-            }
+            let category = 'statistics';
+            if (quote.match(/policy|law|regulation|act|bill|plan|strategy|program/i)) category = 'policy';
+            else if (quote.match(/econom|gdp|inflation|market|trade|fee|cost|price|tax/i)) category = 'economic';
             
-            fullText += `[${citationId}] "${quote.substring(0, 200)}... " `;
+            // Build full sentence
+            let sentence = `According to ${source.source}, "${quote.substring(0, 200)}..."`;
+            categories[category].push({
+                sentence: sentence,
+                citationId: citationId,
+                url: source.url
+            });
             
             citations.push({
                 id: citationId,
@@ -369,58 +379,46 @@ function buildResearchAnswer(query, sources) {
         }
     }
     
-    if (categories.statistics.length > 0) {
-        fullText += ` Found ${categories.statistics.length} key statistics. `;
-    }
-    
-    fullText += ` Click any [number] to verify the source.`;
+    // Build compiler summary (sentences listing all major sources)
+    const uniqueSources = [...new Map(sources.map(s => [s.source, s])).values()].slice(0, 15);
+    let compilerSummary = `This research synthesized information from ${sources.length} sources, including ${govSources.length} government sources. `;
+    compilerSummary += `Key sources consulted: ${uniqueSources.map(s => s.source).join(', ')}. `;
+    compilerSummary += `All citations are linked to original documents for verification.`;
     
     return {
-        text: fullText,
+        text: `Found ${sources.length} sources (${govSources.length} government) about "${query}". Below are key findings organized by category. Click any [number] to verify.`,
         citations: citations,
-        evidenceCount: sortedSources.length,
+        evidenceCount: sources.length,
         governmentCount: govSources.length,
-        categories: {
-            statistics: categories.statistics.slice(0, 5),
-            policy: categories.policy.slice(0, 5),
-            economic: categories.economic.slice(0, 5)
-        }
+        categories: categories,
+        compilerSummary: compilerSummary
     };
 }
 
 // ============================================
-// GENERATE AI ANALYSIS
+// AI ANALYSIS WITH CITATIONS
 // ============================================
-async function generateAIAnalysis(query, sources) {
+async function generateAIAnalysisWithCitations(query, sources) {
     const groqKey = process.env.GROQ_API_KEY;
     
-    if (!groqKey) {
+    if (!groqKey || sources.length === 0) {
         return {
-            text: `AI analysis temporarily unavailable. Please review the ${sources.length} research sources above for information about "${query}".`,
+            text: `AI analysis unavailable. Please review the ${sources.length} research sources above.`,
             sourcesUsed: sources.length,
             governmentSourcesUsed: sources.filter(s => s.isGovernment).length,
-            modelUsed: "Groq API key missing"
-        };
-    }
-    
-    if (sources.length === 0) {
-        return {
-            text: `No research sources were found for "${query}". Please try different keywords.`,
-            sourcesUsed: 0,
-            governmentSourcesUsed: 0,
-            modelUsed: "No sources"
+            modelUsed: "Groq API missing or no sources",
+            citations: []
         };
     }
     
     const topSources = sources.slice(0, 12);
     const sourceTexts = [];
-    
     for (const source of topSources) {
         let content = source.snippet || source.title || '';
         content = cleanText(content);
         if (content.length > 50) {
-            const sourceLabel = source.isGovernment ? `[GOVERNMENT: ${source.source}]` : `[SOURCE: ${source.source}]`;
-            sourceTexts.push(`${sourceLabel} ${content.substring(0, 400)}`);
+            const label = source.isGovernment ? `[GOV:${source.source}]` : `[${source.source}]`;
+            sourceTexts.push(`${label} ${content.substring(0, 400)} ||| URL: ${source.url}`);
         }
     }
     
@@ -436,15 +434,15 @@ async function generateAIAnalysis(query, sources) {
                 messages: [
                     {
                         role: 'system',
-                        content: `You are a neutral, unbiased research analyst. Summarize what the provided research sources say. ONLY use information from the sources. Keep your answer clear and concise (150-250 words). Do not use markdown, asterisks, or hashtags. Write in plain text.`
+                        content: `You are a neutral fact-checking AI. Answer using ONLY the provided sources. For each factual claim, add a citation like [source: URL] at the end of the sentence. Use plain text, no markdown.`
                     },
                     {
                         role: 'user',
-                        content: `User Question: ${query}\n\nResearch Sources (${sources.length} total, ${sources.filter(s => s.isGovernment).length} government sources):\n\n${sourceTexts.join('\n\n')}\n\nBased ONLY on the research sources above, provide:\n1. A clear answer to the user's question\n2. Key statistics found (as simple bullet points with dashes)\n3. Any contradictions between sources (or say "None found")\n\nUse NO markdown formatting. Write in clean plain text.`
+                        content: `Question: ${query}\n\nSources:\n${sourceTexts.join('\n\n')}\n\nProvide a clear, factual answer with citations [source: URL] after each sentence.`
                     }
                 ],
                 temperature: 0.1,
-                max_tokens: 600
+                max_tokens: 800
             })
         });
         
@@ -453,28 +451,28 @@ async function generateAIAnalysis(query, sources) {
             let analysis = data.choices?.[0]?.message?.content || '';
             analysis = cleanText(analysis);
             
+            // Extract citations from the AI response
+            const citationRegex = /\[source:\s*(https?:\/\/[^\s\]]+)\]/gi;
+            const foundUrls = [...analysis.matchAll(citationRegex)].map(m => m[1]);
+            
             return {
                 text: analysis,
                 sourcesUsed: sources.length,
                 governmentSourcesUsed: sources.filter(s => s.isGovernment).length,
-                modelUsed: "Groq Llama 3.3"
+                modelUsed: "Groq Llama 3.3 with citations",
+                citations: foundUrls
             };
         } else {
-            return {
-                text: `AI analysis temporarily unavailable. Please review the ${sources.length} research sources above for information about "${query}".`,
-                sourcesUsed: sources.length,
-                governmentSourcesUsed: sources.filter(s => s.isGovernment).length,
-                modelUsed: "API error"
-            };
+            throw new Error('Groq API error');
         }
-        
     } catch (error) {
-        console.error('AI Analysis error:', error.message);
+        console.error('AI error:', error.message);
         return {
-            text: `AI analysis temporarily unavailable. Please review the ${sources.length} research sources above for information about "${query}".`,
+            text: `AI analysis temporarily unavailable. Please review the ${sources.length} research sources above.`,
             sourcesUsed: sources.length,
             governmentSourcesUsed: sources.filter(s => s.isGovernment).length,
-            modelUsed: "Error"
+            modelUsed: "Error - see sources",
+            citations: []
         };
     }
 }
