@@ -1,6 +1,6 @@
 // ============================================
-// DEBATESPACE - GOVERNMENT PRIORITY SEARCH
-// Forces government domains using siteSearch
+// DEBATESPACE - COMPLETE FIXED SEARCH
+// Keeps CX engines + adds forced government + proper filtering
 // ============================================
 
 export default async function handler(req, res) {
@@ -18,31 +18,7 @@ export default async function handler(req, res) {
         let allResults = [];
         
         // ========================================
-        // 1. FORCE GOVERNMENT DOMAIN SEARCHES (MOST IMPORTANT)
-        // ========================================
-        const govDomains = [
-            '.gov', '.gov.uk', '.gc.ca', '.mil',
-            '.gov.au', '.govt.nz', '.gouv.fr', '.gob.es',
-            '.gov.it', '.gov.de', '.go.jp', '.go.kr',
-            '.gov.sg', '.gov.in', '.census.gov', '.bls.gov',
-            '.cdc.gov', '.nih.gov', '.europa.eu', '.who.int',
-            '.un.org', '.worldbank.org', '.imf.org', '.oecd.org'
-        ];
-        
-        const primaryCx = process.env.GOOGLE_SEARCH_CX_NA;
-        
-        for (const domain of govDomains) {
-            if (apiKey && primaryCx) {
-                const results = await searchDomain(apiKey, primaryCx, query, domain);
-                allResults.push(...results);
-                if (results.length > 0) {
-                    console.log(`✓ ${domain}: ${results.length} results`);
-                }
-            }
-        }
-        
-        // ========================================
-        // 2. SEARCH REGULAR CX ENGINES (for context)
+        // 1. SEARCH ALL YOUR CX ENGINES (KEEP THESE WORKING)
         // ========================================
         const cxEngines = [
             { name: 'North America', cx: process.env.GOOGLE_SEARCH_CX_NA },
@@ -61,55 +37,150 @@ export default async function handler(req, res) {
         }
         
         // ========================================
-        // 3. TAVILY SEARCH (searches entire web)
+        // 2. FORCE GOVERNMENT DOMAIN SEARCHES (ADDITIONAL, NOT REPLACING)
+        // ========================================
+        const govDomains = [
+            '.gov', '.gov.uk', '.gc.ca', '.mil',
+            '.gov.au', '.govt.nz', '.gouv.fr', '.gob.es',
+            '.gov.it', '.gov.de', '.go.jp', '.go.kr',
+            '.gov.sg', '.gov.in', '.census.gov', '.bls.gov',
+            '.cdc.gov', '.nih.gov', '.fda.gov', '.justice.gov',
+            '.state.gov', '.treasury.gov', '.defense.gov'
+        ];
+        
+        const primaryCx = process.env.GOOGLE_SEARCH_CX_NA;
+        
+        for (const domain of govDomains) {
+            if (apiKey && primaryCx) {
+                const results = await searchDomain(apiKey, primaryCx, query, domain);
+                allResults.push(...results);
+                if (results.length > 0) {
+                    console.log(`Forced ${domain}: ${results.length} results`);
+                }
+            }
+        }
+        
+        // ========================================
+        // 3. SEARCH ARCHIVES (ADDITIONAL)
+        // ========================================
+        const archives = [
+            'archive.org', 'archives.gov', 'census.gov', 'data.gov',
+            'worldbank.org', 'imf.org', 'oecd.org', 'who.int',
+            'un.org', 'europa.eu', 'statcan.gc.ca', 'bls.gov',
+            'ons.gov.uk', 'pewresearch.org', 'rand.org'
+        ];
+        
+        for (const archive of archives) {
+            if (apiKey && primaryCx) {
+                const results = await searchArchive(apiKey, primaryCx, query, archive);
+                allResults.push(...results);
+                if (results.length > 0) {
+                    console.log(`Archive ${archive}: ${results.length} results`);
+                }
+            }
+        }
+        
+        // ========================================
+        // 4. TAVILY SEARCH
         // ========================================
         const tavilyResults = await tavilySearch(query);
         allResults.push(...tavilyResults);
         console.log(`Tavily: ${tavilyResults.length} results`);
         
         // ========================================
-        // 4. FILTER OUT LOW-AUTHORITY SITES
+        // 5. PROPERLY BLOCK LOW-AUTHORITY SITES
         // ========================================
         const blockedDomains = [
-            'wikipedia.org', 'reddit.com', 'blogspot.com', 
-            'wordpress.com', 'medium.com', 'quora.com', 
-            'wikia.com', 'fandom.com', 'youtube.com'
+            'wikipedia.org', 'reddit.com', 'facebook.com', 'twitter.com',
+            'instagram.com', 'tiktok.com', 'blogspot.com', 'wordpress.com',
+            'medium.com', 'quora.com', 'wikia.com', 'fandom.com',
+            'youtube.com', 'youtu.be', 'pinterest.com', 'tumblr.com'
+        ];
+        
+        const blockedUrlPatterns = [
+            '/wiki/', 'reddit.com/r/', 'facebook.com/share',
+            'twitter.com/share', 'instagram.com/p/'
         ];
         
         allResults = allResults.filter(result => {
             const url = result.url || '';
-            return !blockedDomains.some(blocked => url.includes(blocked));
+            const source = (result.source || '').toLowerCase();
+            
+            // Check domain blocking
+            for (const blocked of blockedDomains) {
+                if (url.includes(blocked) || source.includes(blocked)) {
+                    console.log(`Filtered blocked domain: ${url}`);
+                    return false;
+                }
+            }
+            
+            // Check URL pattern blocking
+            for (const pattern of blockedUrlPatterns) {
+                if (url.includes(pattern)) {
+                    console.log(`Filtered blocked pattern: ${url}`);
+                    return false;
+                }
+            }
+            
+            return true;
         });
         
         // ========================================
-        // 5. REMOVE DUPLICATES
+        // 6. REMOVE DUPLICATES (SMART - KEEP GOVERNMENT VERSION)
         // ========================================
         const uniqueResults = [];
-        const seenUrls = new Set();
+        const urlMap = new Map(); // Track by URL
+        const titleMap = new Map(); // Track by title for near-duplicates
+        
         for (const result of allResults) {
-            if (!seenUrls.has(result.url)) {
-                seenUrls.add(result.url);
-                uniqueResults.push(result);
+            const url = result.url || '';
+            const title = (result.title || '').toLowerCase().substring(0, 100);
+            
+            // Skip if exact URL already seen
+            if (urlMap.has(url)) continue;
+            
+            // Skip if very similar title from same source type
+            if (titleMap.has(title)) {
+                const existing = titleMap.get(title);
+                // Keep government version if one is government
+                if (result.isGovernment && !existing.isGovernment) {
+                    // Replace with government version
+                    const index = uniqueResults.indexOf(existing);
+                    if (index !== -1) {
+                        uniqueResults[index] = result;
+                        urlMap.set(url, true);
+                        continue;
+                    }
+                } else {
+                    // Skip duplicate
+                    continue;
+                }
             }
+            
+            urlMap.set(url, true);
+            titleMap.set(title, result);
+            uniqueResults.push(result);
         }
         
         // ========================================
-        // 6. MARK GOVERNMENT SOURCES
+        // 7. MARK GOVERNMENT SOURCES (ACCURATE)
         // ========================================
         for (const result of uniqueResults) {
             const url = result.url || '';
+            const source = result.source || '';
             result.isGovernment = (
-                url.includes('.gov') || 
-                url.includes('.gc.ca') || 
-                url.includes('.mil') ||
-                url.includes('.gov.uk') ||
-                url.includes('.gov.au') ||
-                url.includes('.govt.nz')
+                url.includes('.gov') || url.includes('.gc.ca') || 
+                url.includes('.mil') || url.includes('.gov.uk') ||
+                url.includes('.gov.au') || url.includes('.govt.nz') ||
+                url.includes('.census.gov') || url.includes('.bls.gov') ||
+                url.includes('.cdc.gov') || url.includes('.nih.gov') ||
+                source.includes('.gov') || source.includes('gc.ca') ||
+                result.type === 'government' || result.type === 'archive'
             );
         }
         
         // ========================================
-        // 7. SORT: GOVERNMENT FIRST
+        // 8. SORT: GOVERNMENT FIRST, THEN RELEVANCE
         // ========================================
         uniqueResults.sort((a, b) => {
             if (a.isGovernment && !b.isGovernment) return -1;
@@ -118,10 +189,11 @@ export default async function handler(req, res) {
         });
         
         const govCount = uniqueResults.filter(r => r.isGovernment).length;
-        console.log(`\n📊 TOTAL: ${uniqueResults.length} sources (${govCount} government)`);
+        console.log(`\n📊 FINAL: ${uniqueResults.length} sources (${govCount} government)`);
+        console.log(`Blocked sites filtered: Facebook, Wikipedia, Reddit, blogs, etc.`);
         
         // ========================================
-        // 8. BUILD RESPONSE
+        // 9. BUILD RESPONSES
         // ========================================
         const researchAnswer = buildResearchAnswer(query, uniqueResults);
         const aiAnalysis = await generateAIAnalysis(query, uniqueResults);
@@ -135,7 +207,7 @@ export default async function handler(req, res) {
             aiAnalysis: aiAnalysis,
             newsArticles: newsResults,
             videoSources: videoResults,
-            allSources: uniqueResults.slice(0, 50),
+            allSources: uniqueResults.slice(0, 60),
             totalSourcesFound: uniqueResults.length,
             governmentSourcesCount: govCount,
             timestamp: new Date().toISOString()
@@ -159,31 +231,6 @@ export default async function handler(req, res) {
 // SEARCH FUNCTIONS
 // ============================================
 
-// FORCED DOMAIN SEARCH - THIS IS THE KEY FIX
-async function searchDomain(apiKey, cx, query, domain) {
-    const results = [];
-    try {
-        const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&siteSearch=${domain}&siteSearchFilter=i&num=10`;
-        const response = await fetch(url);
-        if (response.ok) {
-            const data = await response.json();
-            if (data.items) {
-                for (const item of data.items) {
-                    results.push({
-                        type: "government",
-                        source: domain.replace('.', ''),
-                        title: cleanText(item.title),
-                        url: item.link,
-                        snippet: cleanText(item.snippet || ''),
-                        isGovernment: true
-                    });
-                }
-            }
-        }
-    } catch (error) {}
-    return results;
-}
-
 async function searchCX(apiKey, cx, query) {
     const results = [];
     try {
@@ -204,7 +251,61 @@ async function searchCX(apiKey, cx, query) {
                 }
             }
         }
-    } catch (error) {}
+    } catch (error) {
+        console.error(`CX search error:`, error.message);
+    }
+    return results;
+}
+
+async function searchDomain(apiKey, cx, query, domain) {
+    const results = [];
+    try {
+        const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&siteSearch=${domain}&siteSearchFilter=i&num=8`;
+        const response = await fetch(url);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.items) {
+                for (const item of data.items) {
+                    results.push({
+                        type: "government",
+                        source: domain.replace('.', ''),
+                        title: cleanText(item.title),
+                        url: item.link,
+                        snippet: cleanText(item.snippet || ''),
+                        isGovernment: true
+                    });
+                }
+            }
+        }
+    } catch (error) {
+        console.error(`Domain search error for ${domain}:`, error.message);
+    }
+    return results;
+}
+
+async function searchArchive(apiKey, cx, query, archive) {
+    const results = [];
+    try {
+        const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&siteSearch=${archive}&siteSearchFilter=i&num=6`;
+        const response = await fetch(url);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.items) {
+                for (const item of data.items) {
+                    results.push({
+                        type: "archive",
+                        source: archive,
+                        title: cleanText(item.title),
+                        url: item.link,
+                        snippet: cleanText(item.snippet || ''),
+                        isGovernment: archive.includes('.gov') || archive.includes('.org')
+                    });
+                }
+            }
+        }
+    } catch (error) {
+        console.error(`Archive search error for ${archive}:`, error.message);
+    }
     return results;
 }
 
@@ -220,7 +321,8 @@ async function tavilySearch(query) {
                 api_key: apiKey, 
                 query: query, 
                 search_depth: 'advanced', 
-                max_results: 10
+                max_results: 12,
+                include_domains: ['.gov', '.gc.ca', '.mil', '.edu', '.org']
             })
         });
         if (response.ok) {
@@ -233,12 +335,14 @@ async function tavilySearch(query) {
                         title: cleanText(result.title),
                         url: result.url,
                         snippet: cleanText(result.content?.substring(0, 500) || ''),
-                        isGovernment: result.url.includes('.gov')
+                        isGovernment: result.url.includes('.gov') || result.url.includes('.gc.ca')
                     });
                 }
             }
         }
-    } catch (error) {}
+    } catch (error) {
+        console.error('Tavily error:', error.message);
+    }
     return results;
 }
 
@@ -260,7 +364,9 @@ async function getNews(query) {
                 }));
             }
         }
-    } catch (error) {}
+    } catch (error) {
+        console.error('News error:', error.message);
+    }
     return [];
 }
 
@@ -281,7 +387,9 @@ async function getVideos(query) {
                 }));
             }
         }
-    } catch (error) {}
+    } catch (error) {
+        console.error('Video error:', error.message);
+    }
     return [];
 }
 
@@ -313,7 +421,7 @@ function buildResearchAnswer(query, sources) {
     let citationId = 1;
     let fullText = `Found ${sources.length} sources (${govSources.length} government sources) about "${query}". `;
     
-    for (const source of sources.slice(0, 25)) {
+    for (const source of sources.slice(0, 30)) {
         let quote = source.snippet || source.title || '';
         quote = cleanText(quote);
         
@@ -353,7 +461,7 @@ async function generateAIAnalysis(query, sources) {
         };
     }
     
-    const topSources = sources.slice(0, 12);
+    const topSources = sources.slice(0, 15);
     const sourceTexts = [];
     
     for (const source of topSources) {
