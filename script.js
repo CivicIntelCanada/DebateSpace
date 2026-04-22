@@ -1,4 +1,4 @@
-// DebateSpace Frontend - Deep Research v2
+#// DebateSpace Frontend - Deep Research v2
 
 let currentData = null;
 
