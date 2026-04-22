@@ -1,6 +1,6 @@
 // ============================================
-// DEBATESPACE - COMPLETE FIXED SEARCH
-// Keeps CX engines + adds forced government + proper filtering
+// DEBATESPACE - COMPLETE SEARCH ENGINE
+// Government priority, clickable citations, full answers, no truncation
 // ============================================
 
 export default async function handler(req, res) {
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
         let allResults = [];
         
         // ========================================
-        // 1. SEARCH ALL YOUR CX ENGINES (KEEP THESE WORKING)
+        // 1. SEARCH ALL CX ENGINES
         // ========================================
         const cxEngines = [
             { name: 'North America', cx: process.env.GOOGLE_SEARCH_CX_NA },
@@ -37,7 +37,7 @@ export default async function handler(req, res) {
         }
         
         // ========================================
-        // 2. FORCE GOVERNMENT DOMAIN SEARCHES (ADDITIONAL, NOT REPLACING)
+        // 2. FORCE GOVERNMENT DOMAIN SEARCHES
         // ========================================
         const govDomains = [
             '.gov', '.gov.uk', '.gc.ca', '.mil',
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
         }
         
         // ========================================
-        // 3. SEARCH ARCHIVES (ADDITIONAL)
+        // 3. SEARCH ARCHIVES
         // ========================================
         const archives = [
             'archive.org', 'archives.gov', 'census.gov', 'data.gov',
@@ -88,7 +88,7 @@ export default async function handler(req, res) {
         console.log(`Tavily: ${tavilyResults.length} results`);
         
         // ========================================
-        // 5. PROPERLY BLOCK LOW-AUTHORITY SITES
+        // 5. BLOCK LOW-AUTHORITY SITES
         // ========================================
         const blockedDomains = [
             'wikipedia.org', 'reddit.com', 'facebook.com', 'twitter.com',
@@ -106,18 +106,14 @@ export default async function handler(req, res) {
             const url = result.url || '';
             const source = (result.source || '').toLowerCase();
             
-            // Check domain blocking
             for (const blocked of blockedDomains) {
                 if (url.includes(blocked) || source.includes(blocked)) {
-                    console.log(`Filtered blocked domain: ${url}`);
                     return false;
                 }
             }
             
-            // Check URL pattern blocking
             for (const pattern of blockedUrlPatterns) {
                 if (url.includes(pattern)) {
-                    console.log(`Filtered blocked pattern: ${url}`);
                     return false;
                 }
             }
@@ -126,44 +122,21 @@ export default async function handler(req, res) {
         });
         
         // ========================================
-        // 6. REMOVE DUPLICATES (SMART - KEEP GOVERNMENT VERSION)
+        // 6. REMOVE DUPLICATES
         // ========================================
         const uniqueResults = [];
-        const urlMap = new Map(); // Track by URL
-        const titleMap = new Map(); // Track by title for near-duplicates
+        const urlMap = new Map();
         
         for (const result of allResults) {
             const url = result.url || '';
-            const title = (result.title || '').toLowerCase().substring(0, 100);
-            
-            // Skip if exact URL already seen
-            if (urlMap.has(url)) continue;
-            
-            // Skip if very similar title from same source type
-            if (titleMap.has(title)) {
-                const existing = titleMap.get(title);
-                // Keep government version if one is government
-                if (result.isGovernment && !existing.isGovernment) {
-                    // Replace with government version
-                    const index = uniqueResults.indexOf(existing);
-                    if (index !== -1) {
-                        uniqueResults[index] = result;
-                        urlMap.set(url, true);
-                        continue;
-                    }
-                } else {
-                    // Skip duplicate
-                    continue;
-                }
+            if (!urlMap.has(url)) {
+                urlMap.set(url, true);
+                uniqueResults.push(result);
             }
-            
-            urlMap.set(url, true);
-            titleMap.set(title, result);
-            uniqueResults.push(result);
         }
         
         // ========================================
-        // 7. MARK GOVERNMENT SOURCES (ACCURATE)
+        // 7. MARK GOVERNMENT SOURCES
         // ========================================
         for (const result of uniqueResults) {
             const url = result.url || '';
@@ -180,7 +153,7 @@ export default async function handler(req, res) {
         }
         
         // ========================================
-        // 8. SORT: GOVERNMENT FIRST, THEN RELEVANCE
+        // 8. SORT: GOVERNMENT FIRST
         // ========================================
         uniqueResults.sort((a, b) => {
             if (a.isGovernment && !b.isGovernment) return -1;
@@ -190,10 +163,9 @@ export default async function handler(req, res) {
         
         const govCount = uniqueResults.filter(r => r.isGovernment).length;
         console.log(`\n📊 FINAL: ${uniqueResults.length} sources (${govCount} government)`);
-        console.log(`Blocked sites filtered: Facebook, Wikipedia, Reddit, blogs, etc.`);
         
         // ========================================
-        // 9. BUILD RESPONSES
+        // 9. BUILD RESEARCH ANSWER (NO TRUNCATION)
         // ========================================
         const researchAnswer = buildResearchAnswer(query, uniqueResults);
         const aiAnalysis = await generateAIAnalysis(query, uniqueResults);
@@ -426,11 +398,11 @@ function buildResearchAnswer(query, sources) {
         quote = cleanText(quote);
         
         if (quote.length > 40 && !quote.toLowerCase().includes('search')) {
-            fullText += `[${citationId}] "${quote.substring(0, 200)}... " `;
+            fullText += `[${citationId}] "${quote}" `;
             
             citations.push({
                 id: citationId,
-                text: quote.length > 450 ? quote.substring(0, 450) + '...' : quote,
+                text: quote,
                 source: source.source,
                 url: source.url,
                 title: source.title
