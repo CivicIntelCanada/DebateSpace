@@ -1,4 +1,4 @@
-// DebateSpace Frontend - with category support
+// DebateSpace Frontend - Main Application
 
 let currentData = null;
 
@@ -27,7 +27,7 @@ async function searchDebate() {
 function renderResults(data) {
     const resultsDiv = document.getElementById('results');
     
-    // Stats bar (preserves your original style)
+    // Stats bar
     let html = `
         <div class="stats-bar">
             <span>📊 ${data.totalSourcesFound} sources</span>
@@ -36,7 +36,7 @@ function renderResults(data) {
         </div>
     `;
     
-    // AI Analysis Section (YOUR ORIGINAL FORMAT)
+    // AI Analysis Section
     if (data.aiAnalysis && data.aiAnalysis.text) {
         html += `
             <div class="ai-section">
@@ -54,33 +54,7 @@ function renderResults(data) {
         `;
     }
     
-    // NEW: Category sections (Statistics, Policy, Economic)
-    if (data.research && data.research.categories) {
-        const categories = data.research.categories;
-        
-        if (categories.statistics && categories.statistics.length > 0) {
-            html += `<div class="section-header"><span class="section-icon">📊</span><h3>Key Statistics</h3></div>`;
-            for (const stat of categories.statistics) {
-                html += `<div class="citation-item"><div class="citation-text">${stat.text.substring(0, 300)}...</div><a href="${stat.url}" target="_blank" class="source-link">🔗 Verify source</a></div>`;
-            }
-        }
-        
-        if (categories.policy && categories.policy.length > 0) {
-            html += `<div class="section-header"><span class="section-icon">⚖️</span><h3>Policy Findings</h3></div>`;
-            for (const policy of categories.policy) {
-                html += `<div class="citation-item"><div class="citation-text">${policy.text.substring(0, 300)}...</div><a href="${policy.url}" target="_blank" class="source-link">🔗 Verify source</a></div>`;
-            }
-        }
-        
-        if (categories.economic && categories.economic.length > 0) {
-            html += `<div class="section-header"><span class="section-icon">💰</span><h3>Economic Data</h3></div>`;
-            for (const econ of categories.economic) {
-                html += `<div class="citation-item"><div class="citation-text">${econ.text.substring(0, 300)}...</div><a href="${econ.url}" target="_blank" class="source-link">🔗 Verify source</a></div>`;
-            }
-        }
-    }
-    
-    // Research text (YOUR ORIGINAL)
+    // Research text
     if (data.research && data.research.text) {
         html += `
             <div class="research-summary">
@@ -93,7 +67,7 @@ function renderResults(data) {
         `;
     }
     
-    // Citations (YOUR ORIGINAL FORMAT)
+    // Citations
     if (data.research && data.research.citations && data.research.citations.length > 0) {
         html += `<div class="section-header"><span class="section-icon">📄</span><h3>Source Citations (${data.research.citations.length})</h3></div>`;
         html += `<div class="citations-container">`;
@@ -114,7 +88,7 @@ function renderResults(data) {
         html += `</div>`;
     }
     
-    // News (YOUR ORIGINAL)
+    // News
     if (data.newsArticles && data.newsArticles.length > 0) {
         html += `<div class="section-header"><span class="section-icon">📰</span><h3>Recent News Articles</h3></div>`;
         html += `<div class="news-grid">`;
@@ -130,7 +104,7 @@ function renderResults(data) {
         html += `</div>`;
     }
     
-    // Videos (YOUR ORIGINAL)
+    // Videos
     if (data.videoSources && data.videoSources.length > 0) {
         html += `<div class="section-header"><span class="section-icon">🎥</span><h3>Video Explanations</h3></div>`;
         html += `<div class="videos-grid">`;
@@ -148,7 +122,7 @@ function renderResults(data) {
         html += `</div>`;
     }
     
-    // All Sources (YOUR ORIGINAL)
+    // All sources
     if (data.allSources && data.allSources.length > 0) {
         html += `<div class="section-header"><span class="section-icon">🌐</span><h3>All Sources (${data.allSources.length})</h3></div>`;
         html += `<div class="sources-list">`;
@@ -172,5 +146,6 @@ function setSearch(query) {
     searchDebate();
 }
 
+// Make functions global
 window.searchDebate = searchDebate;
 window.setSearch = setSearch;
