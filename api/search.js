@@ -156,7 +156,7 @@ export default async function handler(req, res) {
 }
 
 // ============================================
-// SEARCH FUNCTIONS (unchanged but included for completeness)
+// SEARCH FUNCTIONS
 // ============================================
 
 async function searchCX(apiKey, cx, query) {
