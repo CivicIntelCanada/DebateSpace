@@ -1,4 +1,4 @@
-// DebateSpace Frontend
+// DebateSpace Frontend - With Clickable Citations & Full Answers
 
 let currentData = null;
 
@@ -35,8 +35,22 @@ function renderResults(data) {
         </div>
     `;
     
-    // AI Analysis
+    // AI ANALYSIS SECTION
     if (data.aiAnalysis && data.aiAnalysis.text) {
+        let aiText = data.aiAnalysis.text;
+        
+        aiText = aiText.replace(/\[(\d+)\]/g, (match, num) => {
+            const citation = data.research?.citations?.find(c => c.id == num);
+            if (citation && citation.url) {
+                return `<a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="clickable-citation">[${num}]</a>`;
+            }
+            return match;
+        });
+        
+        aiText = aiText.replace(/\[source:\s*(https?:\/\/[^\s\]]+)\]/gi, (match, url) => {
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="clickable-citation">[source]</a>`;
+        });
+        
         html += `
             <div class="ai-section">
                 <div class="section-header">
@@ -44,42 +58,59 @@ function renderResults(data) {
                     <h3>AI Fact-Check Analysis</h3>
                 </div>
                 <div class="ai-analysis-content">
-                    ${data.aiAnalysis.text.replace(/\n/g, '<br>')}
+                    ${aiText.replace(/\n/g, '<br>')}
                 </div>
                 <div class="analysis-footer">
-                    Based on ${data.aiAnalysis.sourcesUsed} sources (${data.aiAnalysis.governmentSourcesUsed} government)
+                    Based on ${data.aiAnalysis.sourcesUsed} sources (${data.aiAnalysis.governmentSourcesUsed} government) • ${data.aiAnalysis.modelUsed}
                 </div>
             </div>
         `;
     }
     
-    // Research text
+    // RESEARCH TEXT
     if (data.research && data.research.text) {
+        let researchText = data.research.text;
+        
+        researchText = researchText.replace(/\[(\d+)\]/g, (match, num) => {
+            const citation = data.research.citations?.find(c => c.id == num);
+            if (citation && citation.url) {
+                return `<a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="clickable-citation">[${num}]</a>`;
+            }
+            return match;
+        });
+        
         html += `
             <div class="research-summary">
                 <div class="section-header">
                     <span class="section-icon">📚</span>
                     <h3>Research & Findings</h3>
                 </div>
-                <p>${data.research.text}</p>
+                <div class="research-text">
+                    ${researchText.replace(/\n/g, '<br>')}
+                </div>
             </div>
         `;
     }
     
-    // Citations
+    // CITATIONS SECTION - FULL ANSWERS, NO TRUNCATION
     if (data.research && data.research.citations && data.research.citations.length > 0) {
-        html += `<div class="section-header"><span class="section-icon">📄</span><h3>Source Citations (${data.research.citations.length})</h3></div>`;
+        html += `<div class="section-header"><span class="section-icon">📄</span><h3>Verified Source Citations (${data.research.citations.length})</h3></div>`;
         html += `<div class="citations-container">`;
-        for (const citation of data.research.citations.slice(0, 20)) {
+        
+        for (const citation of data.research.citations) {
+            let fullText = citation.text;
+            let fullTitle = citation.title || '';
+            
             html += `
-                <div class="citation-card">
+                <div class="citation-card" id="citation-${citation.id}">
                     <div class="citation-header">
-                        <span class="citation-number">[${citation.id}]</span>
-                        <strong>${citation.source}</strong>
+                        <a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="citation-number-link">[${citation.id}]</a>
+                        <strong class="citation-source">${citation.source}</strong>
                     </div>
-                    <div class="citation-snippet">${citation.text.substring(0, 300)}...</div>
+                    ${fullTitle ? `<div class="citation-title">${fullTitle}</div>` : ''}
+                    <div class="citation-full-text">${fullText}</div>
                     <div class="citation-link">
-                        <a href="${citation.url}" target="_blank" rel="noopener noreferrer">🔗 Verify source →</a>
+                        <a href="${citation.url}" target="_blank" rel="noopener noreferrer" class="verify-link">🔗 Verify full source →</a>
                     </div>
                 </div>
             `;
@@ -87,9 +118,9 @@ function renderResults(data) {
         html += `</div>`;
     }
     
-    // News
+    // NEWS ARTICLES
     if (data.newsArticles && data.newsArticles.length > 0) {
-        html += `<div class="section-header"><span class="section-icon">📰</span><h3>Recent News</h3></div>`;
+        html += `<div class="section-header"><span class="section-icon">📰</span><h3>Recent News Articles</h3></div>`;
         html += `<div class="news-grid">`;
         for (const article of data.newsArticles.slice(0, 6)) {
             html += `
@@ -105,7 +136,7 @@ function renderResults(data) {
         html += `</div>`;
     }
     
-    // Videos
+    // VIDEO EXPLANATIONS
     if (data.videoSources && data.videoSources.length > 0) {
         html += `<div class="section-header"><span class="section-icon">🎥</span><h3>Video Explanations</h3></div>`;
         html += `<div class="videos-grid">`;
@@ -113,7 +144,7 @@ function renderResults(data) {
             html += `
                 <div class="video-card">
                     <a href="${video.url}" target="_blank" rel="noopener noreferrer">
-                        ${video.thumbnail ? `<img src="${video.thumbnail}" class="video-thumbnail" alt="">` : ''}
+                        ${video.thumbnail ? `<img src="${video.thumbnail}" class="video-thumbnail" alt="${video.title}">` : ''}
                         <strong>${video.title}</strong>
                     </a>
                     <div class="video-channel">${video.channel}</div>
@@ -123,16 +154,17 @@ function renderResults(data) {
         html += `</div>`;
     }
     
-    // All sources
+    // ALL SOURCES
     if (data.allSources && data.allSources.length > 0) {
         html += `<div class="section-header"><span class="section-icon">🌐</span><h3>All Sources (${data.allSources.length})</h3></div>`;
         html += `<div class="sources-list">`;
-        for (const src of data.allSources.slice(0, 20)) {
+        for (const src of data.allSources.slice(0, 30)) {
             const badge = src.isGovernment ? '🏛️ ' : '📄 ';
             html += `
                 <div class="source-item">
                     <a href="${src.url}" target="_blank" rel="noopener noreferrer">${badge}${src.title || src.source}</a>
                     <div class="source-domain">${src.source}</div>
+                    ${src.snippet ? `<div class="source-snippet">${src.snippet.substring(0, 150)}...</div>` : ''}
                 </div>
             `;
         }
